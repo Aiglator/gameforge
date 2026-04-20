@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WILD LANDS · Survival 3D · Game Engine</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>
+(function(){
+  function se(m){var d=document.createElement('div');d.style='position:fixed;bottom:0;left:0;right:0;padding:8px 14px;background:#7f1d1d;color:#fca5a5;font:11px/1.5 monospace;z-index:99999;white-space:pre-wrap';d.textContent='ERR: '+m;document.body.appendChild(d);}
+  window.addEventListener('error',function(e){se(e.message+' '+(e.filename||'').split('/').pop()+':'+e.lineno);});
+  window.addEventListener('unhandledrejection',function(e){se(''+(e.reason&&(e.reason.message||e.reason)||'?'));});
+})();
+</script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;900&display=swap" rel="stylesheet"/>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/","cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"}}</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0e05;font-family:'JetBrains Mono',monospace;overflow:hidden;user-select:none}
+#viewport{position:absolute;inset:0}
+#viewport canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+#fps-c{position:absolute;top:3px;left:50%;transform:translateX(-50%);font-size:9px;color:rgba(255,255,255,.25);z-index:11;pointer-events:none}
+/* ── HUD ── */
+#hud{position:absolute;inset:0;pointer-events:none;z-index:10;display:none}
+#stats{position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:5px;width:190px}
+.sr{display:flex;align-items:center;gap:7px}
+.si{font-size:13px;width:18px;text-align:center}
+.st{flex:1;height:8px;background:rgba(0,0,0,.55);border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.sf{height:100%;border-radius:3px;transition:width .15s}
+.sf-hp{background:#ef4444}
+.sf-hunger{background:#f59e0b}
+.sf-thirst{background:#38bdf8}
+.sf-stam{background:#4ade80}
+#day-box{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 12px;text-align:right}
+#day-n{font-size:16px;font-weight:900;color:#fbbf24}
+#day-t{font-size:10px;color:#9ca3af}
+#day-p{font-size:9px;letter-spacing:.1em;margin-top:1px}
+#xhair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:18px;height:18px}
+#xhair::before,#xhair::after{content:'';position:absolute;background:rgba(255,255,255,.8)}
+#xhair::before{width:2px;height:100%;left:50%;transform:translateX(-50%)}
+#xhair::after{height:2px;width:100%;top:50%;transform:translateY(-50%)}
+#hint{position:absolute;bottom:96px;left:50%;transform:translateX(-50%);font-size:11px;color:#bbf7d0;background:rgba(0,0,0,.65);padding:4px 12px;border-radius:4px;opacity:0;transition:opacity .2s;white-space:nowrap}
+#gbar-wrap{position:absolute;bottom:88px;left:50%;transform:translateX(-50%);width:180px;height:5px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;opacity:0;transition:opacity .15s}
+#gbar{height:100%;width:0%;background:#84cc16;transition:width .05s linear}
+#hotbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:3px}
+.hb{width:52px;height:52px;background:rgba(0,0,0,.65);border:2px solid rgba(255,255,255,.12);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.hb.on{border-color:#fbbf24;background:rgba(251,191,36,.12)}
+.hb-ic{font-size:19px;line-height:1}
+.hb-lb{font-size:7px;color:#6b7280;margin-top:1px;text-align:center}
+.hb-ct{position:absolute;bottom:2px;right:4px;font-size:8px;color:#fbbf24;font-weight:700}
+.hb-k{position:absolute;top:2px;left:4px;font-size:7px;color:rgba(255,255,255,.25)}
+#xp-track{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);width:220px;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+#xp-fill{height:100%;background:#818cf8;width:0%;transition:width .3s}
+#lvl-lbl{position:absolute;bottom:75px;left:calc(50% + 114px);font-size:9px;color:#818cf8;font-weight:700}
+#dmg-v{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(239,68,68,0) 100%);opacity:0;transition:opacity .08s}
+#build-hud{position:absolute;top:50%;right:16px;transform:translateY(-50%);display:none;background:rgba(0,0,0,.7);border:1px solid rgba(132,204,22,.4);border-radius:8px;padding:10px 14px;font-size:10px;color:#84cc16;pointer-events:none}
+#build-hud .bn{font-size:14px;font-weight:900;color:#d9f99d;margin-top:2px}
+#notifs{position:absolute;left:12px;bottom:76px;display:flex;flex-direction:column-reverse;gap:3px;pointer-events:none}
+.nf{font-size:11px;padding:3px 8px;background:rgba(0,0,0,.65);border-left:2px solid #84cc16;border-radius:2px;color:#d1fae5;animation:nIn .2s,nFade 2.5s .8s forwards}
+@keyframes nIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@keyframes nFade{to{opacity:0}}
+#minimap-w{position:absolute;bottom:14px;right:14px;border:1px solid rgba(255,255,255,.15);border-radius:6px;overflow:hidden;background:rgba(0,0,0,.75)}
+#mm-lbl{position:absolute;top:2px;left:4px;font-size:7px;color:rgba(255,255,255,.35);z-index:1}
+/* ── OVERLAYS ── */
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50}
+.op{background:rgba(3,8,2,.96);border:1px solid rgba(132,204,22,.22);border-radius:14px;padding:36px 44px;text-align:center;max-width:440px;width:92%;animation:pIn .3s ease}
+@keyframes pIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:none}}
+.ot{font-size:52px;font-weight:900;color:#d9f99d;line-height:1;margin-bottom:4px;text-shadow:0 0 30px rgba(132,204,22,.35);letter-spacing:-.02em}
+.os{font-size:12px;color:#6b7280;margin-bottom:22px}
+.bg{display:block;width:100%;padding:13px;background:#15803d;color:#fff;font-family:'JetBrains Mono';font-size:12px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;border:none;border-radius:50px;cursor:pointer;transition:background .15s}
+.bg:hover{background:#16a34a}
+.bo{display:block;width:100%;padding:9px;background:transparent;color:#6b7280;font-family:'JetBrains Mono';font-size:11px;border:1px solid rgba(255,255,255,.1);border-radius:50px;cursor:pointer;margin-top:8px;text-decoration:none;text-align:center}
+.krow{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.kh{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:#6b7280}
+.kh kbd{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:2px;padding:0 5px;color:#9ca3af;font-family:'JetBrains Mono';font-size:9px}
+.dsg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.dsb{background:rgba(255,255,255,.04);border-radius:6px;padding:8px;text-align:center}
+.dsl{font-size:8px;color:#4b5563;text-transform:uppercase}
+.dsv{font-size:22px;font-weight:900;color:#84cc16;tabular-nums}
+/* ── INVENTORY OVERLAY ── */
+#ov-inv{display:none;background:rgba(0,5,0,.92);backdrop-filter:blur(5px)}
+#inv-panel{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:min(680px,95vw);padding:22px;background:rgba(4,10,2,.97);border:1px solid rgba(132,204,22,.18);border-radius:14px;max-height:86vh;overflow-y:auto}
+.isec{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px}
+.itl{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.15em;margin-bottom:10px}
+.rg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.ri{display:flex;align-items:center;gap:6px;padding:5px 7px;background:rgba(255,255,255,.04);border-radius:4px}
+.ric{font-size:14px;width:20px;text-align:center}
+.rin{flex:1;font-size:9px;color:#9ca3af}
+.riv{font-size:12px;font-weight:700;color:#84cc16}
+.cl{display:flex;flex-direction:column;gap:4px}
+.ci{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:5px;border:1px solid transparent;transition:border-color .1s}
+.ci:hover{border-color:rgba(132,204,22,.3)}
+.cic{font-size:16px;width:22px;text-align:center}
+.cin{font-size:11px;color:#d1fae5;font-weight:700}
+.cic2{font-size:9px;color:#6b7280;margin-top:1px}
+.cb{padding:4px 10px;background:#166534;color:#a7f3d0;font-size:9px;font-family:'JetBrains Mono';border:none;border-radius:4px;cursor:pointer;font-weight:700;white-space:nowrap}
+.cb:hover{background:#15803d}
+.cb:disabled{background:#1f2937;color:#4b5563;cursor:default}
+#inv-close{position:absolute;top:10px;right:14px;font-size:11px;color:#6b7280;cursor:pointer;pointer-events:all}
+</style>
+</head>
+<body>
+<div id="fps-c">0 FPS</div>
+<div id="viewport"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="stats">
+    <div class="sr"><span class="si">❤</span><div class="st"><div id="sf-hp"  class="sf sf-hp"    style="width:100%"></div></div></div>
+    <div class="sr"><span class="si">🍗</span><div class="st"><div id="sf-hu"  class="sf sf-hunger" style="width:100%"></div></div></div>
+    <div class="sr"><span class="si">💧</span><div class="st"><div id="sf-th"  class="sf sf-thirst" style="width:100%"></div></div></div>
+    <div class="sr"><span class="si">⚡</span><div class="st"><div id="sf-st"  class="sf sf-stam"   style="width:100%"></div></div></div>
+  </div>
+  <div id="day-box"><div>Jour <span id="day-n">1</span></div><div id="day-t">06:00</div><div id="day-p" style="color:#fbbf24">☀ Aube</div></div>
+  <div id="xhair"></div>
+  <div id="hint">[ E ] Récolter</div>
+  <div id="gbar-wrap"><div id="gbar"></div></div>
+  <div id="hotbar"></div>
+  <div id="xp-track"><div id="xp-fill"></div></div>
+  <div id="lvl-lbl">Niv.1</div>
+  <div id="dmg-v"></div>
+  <div id="build-hud"><div style="font-size:9px;letter-spacing:.1em">CONSTRUCTION</div><div class="bn" id="bhn">MUR</div><div style="font-size:8px;color:#6b7280;margin-top:3px">[Scroll] Changer · [LMB] Placer · [B] Quitter</div></div>
+  <div id="notifs"></div>
+  <div id="minimap-w"><span id="mm-lbl">CARTE</span><canvas id="minimap" width="110" height="110"></canvas></div>
+</div>
+
+<!-- START -->
+<div class="ov" id="ov-start">
+  <div class="op">
+    <div style="font-size:9px;color:#4ade80;letter-spacing:.2em;font-weight:700;margin-bottom:6px">GAME ENGINE · SURVIVAL 3D</div>
+    <div class="ot">WILD<br>LANDS</div>
+    <div class="os">Survivez · Récoltez · Construisez · Évoluez</div>
+    <div class="krow">
+      <span class="kh"><kbd>WASD</kbd> Marcher</span>
+      <span class="kh"><kbd>SHIFT</kbd> Courir</span>
+      <span class="kh"><kbd>ESPACE</kbd> Sauter</span>
+      <span class="kh"><kbd>E (hold)</kbd> Récolter</span>
+      <span class="kh"><kbd>F</kbd> Utiliser item</span>
+      <span class="kh"><kbd>TAB</kbd> Inventaire</span>
+      <span class="kh"><kbd>B</kbd> Construire</span>
+      <span class="kh"><kbd>1-8</kbd> Hotbar</span>
+    </div>
+    <button class="bg" style="margin-top:20px" onclick="(window.startGame||function(){alert('Chargement...')})()">▶ Commencer la Survie</button>
+    <a href="index.html" class="bo">← Retour au moteur</a>
+  </div>
+</div>
+
+<!-- DEAD -->
+<div class="ov" id="ov-dead" style="display:none;background:rgba(0,0,0,.82)">
+  <div class="op" style="border-color:rgba(239,68,68,.3)">
+    <div style="font-size:9px;color:#ef4444;letter-spacing:.2em;font-weight:700;margin-bottom:4px">VOUS ÊTES MORT</div>
+    <div class="ot" style="color:#ef4444;text-shadow:0 0 30px rgba(239,68,68,.5)">☠</div>
+    <div class="dsg">
+      <div class="dsb"><div class="dsl">Jours survécus</div><div class="dsv" id="d-days">1</div></div>
+      <div class="dsb"><div class="dsl">Créatures tuées</div><div class="dsv" id="d-kills">0</div></div>
+      <div class="dsb"><div class="dsl">Ressources</div><div class="dsv" id="d-res">0</div></div>
+      <div class="dsb"><div class="dsl">Structures posées</div><div class="dsv" id="d-bld">0</div></div>
+    </div>
+    <button class="bg" onclick="(window.startGame||function(){})()">↺ Réapparaître</button>
+    <a href="index.html" class="bo">← Retour au moteur</a>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div class="ov" id="ov-pause" style="display:none;background:rgba(0,5,0,.72)">
+  <div class="op" style="padding:24px 36px">
+    <div style="font-size:42px;color:#d9f99d">⏸</div>
+    <div style="font-size:12px;color:#6b7280;margin-top:6px">ESC · Reprendre</div>
+    <a href="index.html" class="bo" style="margin-top:14px">← Quitter</a>
+  </div>
+</div>
+
+<!-- INVENTORY -->
+<div class="ov" id="ov-inv">
+  <div style="position:relative">
+    <div id="inv-panel">
+      <div class="isec">
+        <div class="itl">Inventaire</div>
+        <div class="rg" id="inv-grid"></div>
+      </div>
+      <div class="isec">
+        <div class="itl">Fabrication</div>
+        <div class="cl" id="craft-list"></div>
+      </div>
+    </div>
+    <div id="inv-close" onclick="closeInv()">[ ESC / TAB ] Fermer</div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { Engine } from './engine.js';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════════════════════════════
+const WORLD    = 120;
+const EYE_H    = 1.72;
+const SPD_W    = 6;
+const SPD_R    = 12;
+const JUMP_V   = 9;
+const GRAV     = -20;
+const TILE     = 3;
+const M_SENS   = 0.0016;
+const PLIM     = 1.45;
+const REACH    = 4.8;
+const DAY_DUR  = 300;  // seconds per full day/night cycle
+
+// Analytical terrain height — used for both mesh AND collision
+function tH(x, z) {
+  const d = Math.sqrt(x * x + z * z);
+  const flat = Math.max(0, 1 - d / 22);
+  const h =
+    Math.sin(x * .04) * Math.cos(z * .04) * 10 +
+    Math.sin(x * .09 + 1.5) * Math.cos(z * .11 + .7) * 4 +
+    Math.sin(x * .2 + 3) * Math.cos(z * .18 + 2.1) * 1.5;
+  return h * (1 - flat);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ENGINE SETUP
+// ══════════════════════════════════════════════════════════════════════════════
+const vp     = document.getElementById('viewport');
+const engine = new Engine(vp);
+engine.setMode('3d');
+const scene  = engine.renderer.threeScene;
+const webgl  = engine.renderer.webgl;
+const cam    = engine.renderer.cameraPerspective;
+
+webgl.shadowMap.enabled = false;
+cam.fov = 75; cam.near = 0.05; cam.far = 500;
+cam.updateProjectionMatrix();
+cam.rotation.order = 'YXZ';
+
+engine.renderer._playMode = true;
+engine.renderer.controls.enabled = false;
+engine.renderer.transformControls.visible = false;
+engine.renderer.transformControls.enabled = false;
+engine.renderer._grid.visible = false;
+engine.renderer._axes.visible = false;
+
+scene.background = new THREE.Color(0x5896cc);
+scene.fog = new THREE.FogExp2(0x5896cc, 0.007);
+
+const ambient = engine.renderer._ambient;
+const sun     = engine.renderer._sun;
+sun.castShadow = false;
+sun.position.set(-60, 60, 30);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUDIO
+// ══════════════════════════════════════════════════════════════════════════════
+let _actx = null;
+const ac = () => { if (!_actx) _actx = new AudioContext(); _actx.resume(); return _actx; };
+function tone(f, d, t = 'sine', v = .06, f2 = null, delay = 0) {
+  const ctx = ac(), o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = t; o.frequency.setValueAtTime(f, ctx.currentTime + delay);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, ctx.currentTime + delay + d);
+  g.gain.setValueAtTime(0, ctx.currentTime + delay);
+  g.gain.linearRampToValueAtTime(v, ctx.currentTime + delay + .005);
+  g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + delay + d);
+  o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + d + .01);
+}
+const sfx = {
+  chop:    () => { tone(160, .08, 'square', .06, 100); tone(220, .05, 'sine', .04, null, .05); },
+  mine:    () => tone(400, .07, 'square', .05, 250),
+  harvest: () => { [440, 550].forEach((f, i) => tone(f, .08, 'sine', .04, null, i * .05)); },
+  craft:   () => { [330, 440, 550, 660].forEach((f, i) => tone(f, .1, 'sine', .05, null, i * .07)); },
+  place:   () => tone(180, .1, 'sine', .06, 100),
+  eat:     () => { [300, 380].forEach((f, i) => tone(f, .09, 'sine', .05, null, i * .06)); },
+  damage:  () => tone(140, .14, 'sawtooth', .14, 90),
+  die:     () => { tone(160, .7, 'sawtooth', .15, 50); tone(80, .9, 'sine', .08, null, .2); },
+  levelUp: () => { [330, 440, 550, 660, 880].forEach((f, i) => tone(f, .12, 'sine', .07, null, i * .09)); },
+  jump:    () => tone(280, .07, 'sine', .04, 420),
+  footstep:() => tone(80 + Math.random() * 40, .06, 'sine', .03),
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DAY / NIGHT CYCLE
+// ══════════════════════════════════════════════════════════════════════════════
+let dayTime  = 0.27;   // 0=midnight, 0.25=dawn, 0.5=noon, 0.75=dusk
+let dayCount = 1;
+
+const SKY = [
+  // t,   skyR,  skyG,  skyB,  ambR,  ambG,  ambB,  ai,   siR,   siG,  siB,   si
+  [0.00,  .02,   .03,   .08,   .04,   .04,   .10,  .35,   .10,  .10,  .25,  .15],
+  [0.22,  .04,   .03,   .12,   .06,   .05,   .14,  .40,   .14,  .10,  .25,  .30],
+  [0.27,  .75,   .38,   .12,   .52,   .28,   .10,  .70,   .95,  .62,  .22, 1.10],
+  [0.35,  .44,   .66,   .90,   .48,   .54,   .68,  .90,  1.00,  .96,  .82, 1.35],
+  [0.50,  .38,   .62,   .96,   .52,   .58,   .72, 1.00,  1.00,  .98,  .90, 1.50],
+  [0.65,  .44,   .66,   .90,   .48,   .54,   .68,  .90,  1.00,  .96,  .82, 1.25],
+  [0.73,  .82,   .40,   .10,   .50,   .28,   .08,  .65,   .92,  .60,  .20,  .90],
+  [0.78,  .12,   .06,   .16,   .10,   .06,   .14,  .40,   .18,  .10,  .22,  .30],
+  [1.00,  .02,   .03,   .08,   .04,   .04,   .10,  .35,   .10,  .10,  .25,  .15],
+];
+
+function lerpSky(t) {
+  let a = SKY[0], b = SKY[1];
+  for (let i = 0; i < SKY.length - 1; i++) {
+    if (t >= SKY[i][0] && t < SKY[i + 1][0]) { a = SKY[i]; b = SKY[i + 1]; break; }
+  }
+  const f = (b[0] - a[0]) > 0 ? (t - a[0]) / (b[0] - a[0]) : 0;
+  const L = j => a[j] + f * (b[j] - a[j]);
+  scene.background.setRGB(L(1), L(2), L(3));
+  scene.fog.color.setRGB(L(1), L(2), L(3));
+  ambient.color.setRGB(L(4), L(5), L(6));
+  ambient.intensity = L(7);
+  sun.color.setRGB(L(8), L(9), L(10));
+  sun.intensity = L(11);
+  const ang = (t - 0.25) * Math.PI * 2;
+  sun.position.set(-Math.cos(ang) * 80, Math.sin(ang) * 80, 30);
+}
+
+function isNight(t) { return t < 0.22 || t > 0.78; }
+
+function fmtTime(t) {
+  const totalMin = Math.floor(t * 1440);
+  const h = Math.floor(totalMin / 60), m = totalMin % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function phaseName(t) {
+  if (t < 0.22) return ['🌙 Nuit',     '#60a5fa'];
+  if (t < 0.27) return ['🌅 Aube',     '#fb923c'];
+  if (t < 0.73) return ['☀ Jour',     '#fbbf24'];
+  if (t < 0.78) return ['🌇 Crépuscule','#f97316'];
+  return               ['🌙 Nuit',     '#60a5fa'];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TERRAIN
+// ══════════════════════════════════════════════════════════════════════════════
+let terrainMesh;
+function buildTerrain() {
+  const SEG = 80;
+  const geo = new THREE.PlaneGeometry(WORLD * 2, WORLD * 2, SEG, SEG);
+  geo.rotateX(-Math.PI / 2);
+
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const y = tH(x, z);
+    pos.setY(i, y);
+    // Vertex colour based on height + slight variation
+    const v = (Math.sin(x * .3 + z * .2) * .04);
+    let r, g, b;
+    if      (y < -1.5) { r=.18+v; g=.32+v; b=.14+v; }  // dark grass
+    else if (y <  2.0) { r=.22+v; g=.45+v; b=.18+v; }  // grass
+    else if (y <  6.0) { r=.28+v; g=.42+v; b=.20+v; }  // lighter grass
+    else if (y < 10.0) { r=.42+v; g=.36+v; b=.24+v; }  // dirt/rock
+    else               { r=.52+v; g=.50+v; b=.48+v; }  // stone peak
+    colors[i*3]=r; colors[i*3+1]=g; colors[i*3+2]=b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  terrainMesh = new THREE.Mesh(geo, mat);
+  scene.add(terrainMesh);
+
+  // Water
+  const wg = new THREE.PlaneGeometry(WORLD * 2, WORLD * 2);
+  wg.rotateX(-Math.PI / 2);
+  const wm = new THREE.MeshLambertMaterial({ color: 0x1e6091, transparent: true, opacity: .72 });
+  const water = new THREE.Mesh(wg, wm);
+  water.position.y = -1.2;
+  scene.add(water);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RESOURCES (Trees, Rocks, Bushes)
+// ══════════════════════════════════════════════════════════════════════════════
+const resources  = [];
+const meshToRes  = new Map();   // THREE.Mesh → resource object
+const RES_MATS = {
+  trunk: new THREE.MeshLambertMaterial({ color: 0x5c3d1e }),
+  pine:  new THREE.MeshLambertMaterial({ color: 0x2d6a1f }),
+  oak:   new THREE.MeshLambertMaterial({ color: 0x3d7a2a }),
+  rock:  new THREE.MeshLambertMaterial({ color: 0x7a7a7a }),
+  bush:  new THREE.MeshLambertMaterial({ color: 0x3a6b1a }),
+};
+const TRUNK_GEO = new THREE.CylinderGeometry(.22, .32, 3.2, 7);
+const PINE_GEO  = new THREE.ConeGeometry(1.6, 4.2, 7);
+const OAK_GEO   = new THREE.SphereGeometry(1.5, 7, 5);
+const ROCK_GEO  = new THREE.DodecahedronGeometry(1, 0);
+const BUSH_GEO  = new THREE.SphereGeometry(.55, 5, 4);
+
+function mkTree(x, z) {
+  const y = tH(x, z);
+  if (y < -0.5 || y > 11) return;
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(TRUNK_GEO, RES_MATS.trunk);
+  trunk.position.y = 1.6;
+  const crown = new THREE.Mesh(Math.random() < .5 ? PINE_GEO : OAK_GEO,
+    Math.random() < .5 ? RES_MATS.pine : RES_MATS.oak);
+  crown.position.y = Math.random() < .5 ? 4.6 : 3.8;
+  g.add(trunk); g.add(crown);
+  g.position.set(x, y, z);
+  scene.add(g);
+  const r = { type:'tree', hp:100, maxHp:100, pos:new THREE.Vector3(x,y+2,z),
+    mesh:g, gatherTime:2.4, drops:[{item:'wood',mn:2,mx:5}], cr:1.4, alive:true };
+  resources.push(r);
+  [trunk, crown].forEach(m => meshToRes.set(m, r));
+}
+
+function mkRock(x, z) {
+  const y = tH(x, z);
+  if (y < -0.5) return;
+  const s = .65 + Math.random() * .85;
+  const mesh = new THREE.Mesh(ROCK_GEO, RES_MATS.rock);
+  mesh.scale.setScalar(s);
+  mesh.rotation.set(Math.random()*1.5, Math.random()*Math.PI*2, Math.random()*1.2);
+  mesh.position.set(x, y + s * .42, z);
+  scene.add(mesh);
+  const r = { type:'rock', hp:120, maxHp:120, pos:new THREE.Vector3(x,y+1,z),
+    mesh, gatherTime:3.0, drops:[{item:'stone',mn:2,mx:5},{item:'fiber',mn:0,mx:2}], cr:.9, alive:true };
+  resources.push(r);
+  meshToRes.set(mesh, r);
+}
+
+function mkBush(x, z) {
+  const y = tH(x, z);
+  if (y < 0.2 || y > 9) return;
+  const mesh = new THREE.Mesh(BUSH_GEO, RES_MATS.bush);
+  mesh.scale.set(1+Math.random()*.5, .7+Math.random()*.3, 1+Math.random()*.5);
+  mesh.position.set(x, y + .38, z);
+  scene.add(mesh);
+  const r = { type:'bush', hp:30, maxHp:30, pos:new THREE.Vector3(x,y+.5,z),
+    mesh, gatherTime:.9, drops:[{item:'fiber',mn:1,mx:3},{item:'berry',mn:1,mx:4}], cr:.55, alive:true };
+  resources.push(r);
+  meshToRes.set(mesh, r);
+}
+
+function populateWorld() {
+  const rng = (a, b) => a + Math.random() * (b - a);
+  const pos = () => { const v = (Math.random()*2-1)*WORLD*.9; return v; };
+  for (let i = 0; i < 45; i++) mkTree(pos(), pos());
+  for (let i = 0; i < 28; i++) mkRock(pos(), pos());
+  for (let i = 0; i < 35; i++) mkBush(pos(), pos());
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INVENTORY & CRAFTING DATA
+// ══════════════════════════════════════════════════════════════════════════════
+const inv = { wood:0, stone:0, fiber:0, berry:0, meat:0,
+              axe:0, pickaxe:0, bandage:0, waterskin:0,
+              campfire:0, wall:0, floor:0, roof:0 };
+
+const ICONS = { wood:'🪵',stone:'🪨',fiber:'🌿',berry:'🫐',meat:'🥩',
+                axe:'🪓',pickaxe:'⛏',bandage:'🩹',waterskin:'🪣',
+                campfire:'🔥',wall:'🧱',floor:'🟫',roof:'⬛' };
+const NAMES = { wood:'Bois',stone:'Pierre',fiber:'Fibre',berry:'Baie',meat:'Viande',
+                axe:'Hache',pickaxe:'Pioche',bandage:'Bandage',waterskin:'Gourde',
+                campfire:'Feu de camp',wall:'Mur',floor:'Sol',roof:'Toit' };
+
+const RECIPES = [
+  { id:'axe',       name:'Hache',       icon:'🪓', cost:{wood:2,stone:3}, out:1 },
+  { id:'pickaxe',   name:'Pioche',      icon:'⛏',  cost:{wood:2,stone:3}, out:1 },
+  { id:'bandage',   name:'Bandage',     icon:'🩹', cost:{fiber:5},        out:2 },
+  { id:'waterskin', name:'Gourde',      icon:'🪣', cost:{fiber:6,stone:2},out:1 },
+  { id:'campfire',  name:'Feu de camp', icon:'🔥', cost:{wood:5,stone:2}, out:1 },
+  { id:'wall',      name:'Mur',         icon:'🧱', cost:{wood:5},         out:1 },
+  { id:'floor',     name:'Sol',         icon:'🟫', cost:{wood:4},         out:1 },
+  { id:'roof',      name:'Toit',        icon:'⬛', cost:{wood:5},         out:1 },
+];
+
+const HOTBAR_DEF = ['axe','pickaxe','berry','meat','bandage','wall','floor','campfire'];
+let hotSlot = 0;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLAYER STATE
+// ══════════════════════════════════════════════════════════════════════════════
+const P = {
+  pos: new THREE.Vector3(0, 5, 0),
+  velY: 0, grounded: true,
+  yaw: 0, pitch: 0,
+  hp: 100, maxHp: 100,
+  hunger: 100, maxHunger: 100,
+  thirst: 100, maxThirst: 100,
+  stamina: 100, maxStamina: 100,
+  xp: 0, level: 1,
+  alive: true,
+  footT: 0,
+  kills: 0, totalRes: 0, totalBuild: 0,
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CAMERA / INPUT
+// ══════════════════════════════════════════════════════════════════════════════
+const KEYS = {};
+let pointerLocked = false;
+let gameState = 'menu';
+
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === vp;
+  if (!pointerLocked && gameState === 'playing') {
+    gameState = 'paused';
+    document.getElementById('ov-pause').style.display = 'flex';
+  }
+});
+document.addEventListener('mousemove', e => {
+  if (!pointerLocked || gameState !== 'playing') return;
+  P.yaw   -= e.movementX * M_SENS;
+  P.pitch  = Math.max(-PLIM, Math.min(PLIM, P.pitch - e.movementY * M_SENS));
+});
+window.addEventListener('keydown', e => {
+  KEYS[e.code] = true;
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Tab') { e.preventDefault(); toggleInv(); }
+  if (gameState === 'playing') {
+    if (e.code === 'KeyB') toggleBuild();
+    if (e.code === 'KeyF') useHotbarItem();
+    if (e.code === 'Escape') {
+      gameState = 'paused';
+      document.exitPointerLock();
+      document.getElementById('ov-pause').style.display = 'flex';
+    }
+    for (let i = 1; i <= 8; i++) {
+      if (e.code === `Digit${i}`) { hotSlot = i - 1; renderHotbar(); }
+    }
+  } else if (gameState === 'paused' && e.code === 'Escape') {
+    gameState = 'playing';
+    document.getElementById('ov-pause').style.display = 'none';
+    vp.requestPointerLock();
+  } else if (gameState === 'inventory' && (e.code === 'Tab' || e.code === 'Escape')) {
+    e.preventDefault(); closeInv();
+  }
+});
+window.addEventListener('keyup', e => { KEYS[e.code] = false; });
+window.addEventListener('wheel', e => {
+  if (gameState !== 'playing') return;
+  if (buildMode) {
+    buildTypeIdx = (buildTypeIdx + (e.deltaY > 0 ? 1 : -1) + BUILD_TYPES.length) % BUILD_TYPES.length;
+    updateGhost();
+    document.getElementById('bhn').textContent = BUILD_TYPES[buildTypeIdx].name.toUpperCase();
+  }
+}, { passive: true });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GATHERING SYSTEM
+// ══════════════════════════════════════════════════════════════════════════════
+const rcGather = new THREE.Raycaster();
+rcGather.far = REACH;
+let gatherTarget = null;
+let gatherProgress = 0;
+let gatherHeld = false;
+let allResMeshes = [];
+
+function updateResMeshList() {
+  allResMeshes = [];
+  for (const r of resources) {
+    if (!r.alive) continue;
+    r.mesh.traverse(o => { if (o.isMesh) allResMeshes.push(o); });
+  }
+}
+
+function checkGatherTarget() {
+  rcGather.setFromCamera({ x: 0, y: 0 }, cam);
+  const hits = rcGather.intersectObjects(allResMeshes, false);
+  if (hits.length > 0) {
+    const res = meshToRes.get(hits[0].object);
+    if (res && res.alive) return res;
+  }
+  return null;
+}
+
+function gatherTick(dt) {
+  gatherTarget = checkGatherTarget();
+  const hint = document.getElementById('hint');
+  const gbw  = document.getElementById('gbar-wrap');
+  const gbar = document.getElementById('gbar');
+
+  if (gatherTarget) {
+    const tool = HOTBAR_DEF[hotSlot];
+    const hasAxe   = inv.axe > 0;
+    const hasPick  = inv.pickaxe > 0;
+    let speed = 1;
+    if (gatherTarget.type === 'tree'  && hasAxe)  speed = 2.2;
+    if (gatherTarget.type === 'rock'  && hasPick)  speed = 2.2;
+    const tIcon = gatherTarget.type === 'tree' ? '🪵' : gatherTarget.type === 'rock' ? '🪨' : '🌿';
+    hint.textContent = `[ E ] Récolter ${tIcon}`;
+    hint.style.opacity = '1';
+
+    gatherHeld = KEYS['KeyE'];
+    if (gatherHeld) {
+      gatherProgress += dt * speed / gatherTarget.gatherTime;
+      gbw.style.opacity = '1';
+      gbar.style.width = (Math.min(gatherProgress, 1) * 100) + '%';
+
+      // Sound tick every 0.5 progress
+      if (Math.floor(gatherProgress * 6) > Math.floor((gatherProgress - dt * speed / gatherTarget.gatherTime) * 6)) {
+        if (gatherTarget.type === 'tree') sfx.chop();
+        else if (gatherTarget.type === 'rock') sfx.mine();
+        else sfx.harvest();
+      }
+
+      if (gatherProgress >= 1) {
+        gatherProgress = 0;
+        doGather(gatherTarget);
+      }
+    } else {
+      gatherProgress = Math.max(0, gatherProgress - dt * 2);
+      gbw.style.opacity = gatherProgress > 0 ? '1' : '0';
+      gbar.style.width = (gatherProgress * 100) + '%';
+    }
+  } else {
+    hint.style.opacity = '0';
+    gbw.style.opacity  = '0';
+    gatherProgress = Math.max(0, gatherProgress - dt * 3);
+  }
+}
+
+function doGather(res) {
+  for (const drop of res.drops) {
+    const amt = drop.mn + Math.floor(Math.random() * (drop.mx - drop.mn + 1));
+    if (amt > 0) { inv[drop.item] = (inv[drop.item] || 0) + amt; P.totalRes += amt;
+      notify(`+${amt} ${ICONS[drop.item]} ${NAMES[drop.item]}`); }
+  }
+  res.hp -= 34;
+  sfx.collect ? sfx.harvest() : null;
+  if (res.hp <= 0) {
+    res.alive = false;
+    scene.remove(res.mesh);
+    updateResMeshList();
+  }
+  renderHotbar();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CRAFTING
+// ══════════════════════════════════════════════════════════════════════════════
+function canCraft(r) {
+  return Object.entries(r.cost).every(([k, v]) => (inv[k] || 0) >= v);
+}
+function doCraft(r) {
+  if (!canCraft(r)) return;
+  Object.entries(r.cost).forEach(([k, v]) => { inv[k] -= v; });
+  inv[r.id] = (inv[r.id] || 0) + r.out;
+  sfx.craft();
+  notify(`Fabriqué: ${r.icon} ${r.name}`);
+  gainXP(15);
+  renderInv();
+  renderHotbar();
+}
+
+function useHotbarItem() {
+  const item = HOTBAR_DEF[hotSlot];
+  if (!item || (inv[item] || 0) <= 0) return;
+  if (item === 'berry')   { P.hunger = Math.min(P.maxHunger, P.hunger + 18); inv.berry--; sfx.eat(); notify('+18 🍗 Faim (baie)'); }
+  else if (item === 'meat') { P.hunger = Math.min(P.maxHunger, P.hunger + 45); P.hp = Math.min(P.maxHp, P.hp + 10); inv.meat--; sfx.eat(); notify('+45 🍗 +10 ❤ (viande)'); }
+  else if (item === 'bandage') { P.hp = Math.min(P.maxHp, P.hp + 35); inv.bandage--; sfx.eat(); notify('+35 ❤ Bandage appliqué'); }
+  else if (item === 'waterskin') { P.thirst = Math.min(P.maxThirst, P.thirst + 50); inv.waterskin--; sfx.eat(); notify('+50 💧 Gourde bue'); }
+  renderHotbar();
+  updateHUD();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUILDING SYSTEM
+// ══════════════════════════════════════════════════════════════════════════════
+let buildMode = false;
+let buildTypeIdx = 0;
+const BUILD_TYPES = [
+  { id:'wall',     name:'Mur',    cost:{wall:1},
+    geo: new THREE.BoxGeometry(TILE, TILE, .3),
+    mat: new THREE.MeshLambertMaterial({ color:0x8b6914 }) },
+  { id:'floor',    name:'Sol',    cost:{floor:1},
+    geo: new THREE.BoxGeometry(TILE, .25, TILE),
+    mat: new THREE.MeshLambertMaterial({ color:0xa0721e }) },
+  { id:'roof',     name:'Toit',   cost:{roof:1},
+    geo: new THREE.BoxGeometry(TILE, .25, TILE),
+    mat: new THREE.MeshLambertMaterial({ color:0x6b4a12 }) },
+  { id:'campfire', name:'Feu',    cost:{campfire:1},
+    geo: new THREE.CylinderGeometry(.4, .6, .5, 8),
+    mat: new THREE.MeshLambertMaterial({ color:0x333333 }) },
+];
+const GHOST_MAT = new THREE.MeshLambertMaterial({ color:0x84cc16, transparent:true, opacity:.45, depthWrite:false });
+let ghostMesh = null;
+const placed  = [];
+const rcBuild = new THREE.Raycaster();
+const _v2     = new THREE.Vector2(0, 0);
+let campfireLights = [];
+
+function toggleBuild() {
+  buildMode = !buildMode;
+  document.getElementById('build-hud').style.display = buildMode ? 'block' : 'none';
+  if (!buildMode && ghostMesh) { scene.remove(ghostMesh); ghostMesh = null; }
+  if (buildMode) updateGhost();
+}
+
+function updateGhost() {
+  const bt = BUILD_TYPES[buildTypeIdx];
+  if (ghostMesh) scene.remove(ghostMesh);
+  ghostMesh = new THREE.Mesh(bt.geo, GHOST_MAT);
+  scene.add(ghostMesh);
+}
+
+function tickBuild() {
+  if (!buildMode || !ghostMesh) return;
+  rcBuild.setFromCamera(_v2, cam);
+  const hits = rcBuild.intersectObject(terrainMesh, false);
+  if (hits.length > 0) {
+    const p = hits[0].point;
+    const sx = Math.round(p.x / TILE) * TILE;
+    const sz = Math.round(p.z / TILE) * TILE;
+    const sy = tH(sx, sz);
+    ghostMesh.position.set(sx, sy + (BUILD_TYPES[buildTypeIdx].id==='wall' ? TILE/2 : .12), sz);
+    if (BUILD_TYPES[buildTypeIdx].id === 'roof')
+      ghostMesh.position.y = sy + TILE + .12;
+  }
+}
+
+function placeStructure() {
+  if (!buildMode || !ghostMesh) return;
+  const bt = BUILD_TYPES[buildTypeIdx];
+  const needed = Object.entries(bt.cost);
+  for (const [k, v] of needed) {
+    if ((inv[k] || 0) < v) { notify('Pas assez de matériaux !', '#f87171'); return; }
+  }
+  for (const [k, v] of needed) inv[k] -= v;
+  const mesh = new THREE.Mesh(bt.geo, bt.mat);
+  mesh.position.copy(ghostMesh.position);
+  scene.add(mesh);
+  placed.push(mesh);
+  P.totalBuild++;
+  sfx.place();
+  notify(`${bt.name} posé`);
+  if (bt.id === 'campfire') {
+    const fl = new THREE.PointLight(0xff8844, 3, 8);
+    fl.position.copy(mesh.position);
+    fl.position.y += 1;
+    scene.add(fl);
+    campfireLights.push({ light: fl, baseInt: 3 });
+  }
+  gainXP(5);
+  renderHotbar();
+  updateHUD();
+}
+
+document.addEventListener('mousedown', e => {
+  if (gameState !== 'playing') return;
+  if (e.button === 0) {
+    if (!pointerLocked) { vp.requestPointerLock(); return; }
+    if (buildMode) placeStructure();
+    else attackCreatures();
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CREATURES
+// ══════════════════════════════════════════════════════════════════════════════
+const CDEFS = {
+  raptor:  { hp:50,  spd:7,  dmg:10, sz:.9,  col:0x3a7a1e, atk:1.6, atkCd:1.2, aggroR:20, drops:[{item:'meat',mn:1,mx:2}], nocturnal:false, pts:15 },
+  trike:   { hp:200, spd:4,  dmg:28, sz:1.8, col:0x8b6914, atk:2.4, atkCd:2.0, aggroR:10, drops:[{item:'meat',mn:2,mx:4}], nocturnal:false, pts:40 },
+  crawler: { hp:35,  spd:9,  dmg:8,  sz:.75, col:0xaa1111, atk:1.2, atkCd:.8,  aggroR:28, drops:[{item:'fiber',mn:2,mx:3}],nocturnal:true,  pts:20 },
+};
+
+const creatures = [];
+const _rcAtk = new THREE.Raycaster();
+_rcAtk.far = 4;
+
+class Creature {
+  constructor(type) {
+    const def = CDEFS[type];
+    this.type = type; this.def = def;
+    this.hp = def.hp; this.alive = true;
+    this.atkT = 0; this.flashT = 0;
+    this.state = 'patrol'; // patrol | aggro | attack
+    this.patrolTarget = new THREE.Vector3();
+
+    // Spawn far from center — pos must be set BEFORE newPatrolTarget()
+    let sx, sz;
+    do { sx = (Math.random()*2-1)*WORLD*.85; sz = (Math.random()*2-1)*WORLD*.85; }
+    while (Math.sqrt(sx*sx+sz*sz) < 25);
+    this.pos = new THREE.Vector3(sx, tH(sx, sz) + def.sz*.5, sz);
+    this.newPatrolTarget();
+
+    // Build mesh
+    const s = def.sz;
+    this.group = new THREE.Group();
+    const bodyG = type === 'trike'
+      ? new THREE.BoxGeometry(s*1.6, s, s*.9)
+      : new THREE.BoxGeometry(s, s*1.2, s*.75);
+    const mat = new THREE.MeshLambertMaterial({ color: def.col });
+    this.body = new THREE.Mesh(bodyG, mat); this.mat = mat;
+    this.body.position.y = s * .3;
+    this.group.add(this.body);
+
+    // Head
+    const headG = new THREE.BoxGeometry(s*.6, s*.55, s*.7);
+    const head  = new THREE.Mesh(headG, mat);
+    head.position.set(0, s*.8, -s*.5);
+    this.body.add(head);
+
+    // Eyes
+    const eyeM = new THREE.MeshBasicMaterial({ color: type==='crawler' ? 0xff0000 : 0xffffff });
+    for (const ox of [-s*.15, s*.15]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(.05, 4, 3), eyeM);
+      eye.position.set(ox, .04, -.32);
+      head.add(eye);
+    }
+
+    // Trike horns
+    if (type === 'trike') {
+      const hornM = new THREE.MeshLambertMaterial({ color: 0xd4c490 });
+      for (const ox of [-s*.25, 0, s*.25]) {
+        const h = new THREE.Mesh(new THREE.ConeGeometry(.08, .6, 5), hornM);
+        h.rotation.x = -Math.PI * .35; h.position.set(ox, .15, -.55);
+        head.add(h);
+      }
+    }
+
+    // HP bar plane (faces camera)
+    this.hpGroup = new THREE.Group();
+    this.hpGroup.position.y = s * 1.9;
+    const bgBar = new THREE.Mesh(new THREE.PlaneGeometry(.9,.09),
+      new THREE.MeshBasicMaterial({color:0x111,side:THREE.DoubleSide}));
+    this.hpFg = new THREE.Mesh(new THREE.PlaneGeometry(.9,.08),
+      new THREE.MeshBasicMaterial({color:0x22c55e,side:THREE.DoubleSide,depthTest:false}));
+    this.hpFg.position.z = .002;
+    this.hpGroup.add(bgBar); this.hpGroup.add(this.hpFg);
+    this.group.add(this.hpGroup);
+
+    this.group.position.copy(this.pos);
+    scene.add(this.group);
+  }
+
+  newPatrolTarget() {
+    const a = Math.random() * Math.PI * 2;
+    const d = 8 + Math.random() * 14;
+    this.patrolTarget.set(
+      Math.max(-WORLD+2, Math.min(WORLD-2, this.pos.x + Math.cos(a)*d)),
+      0,
+      Math.max(-WORLD+2, Math.min(WORLD-2, this.pos.z + Math.sin(a)*d))
+    );
+    this.patrolT = 5 + Math.random() * 8;
+  }
+
+  update(dt) {
+    if (!this.alive) return;
+    this.atkT  = Math.max(0, this.atkT - dt);
+    this.flashT = Math.max(0, this.flashT - dt * 5);
+    this.mat.emissive = this.mat.emissive || new THREE.Color(0);
+    this.mat.emissive.setScalar(this.flashT * .4);
+
+    const dist = P.pos.distanceTo(this.pos);
+    const nightActive = this.def.nocturnal ? isNight(dayTime) : true;
+
+    if (dist < this.def.aggroR && nightActive && P.alive) {
+      this.state = 'aggro';
+    } else if (dist > this.def.aggroR * 1.4 || !nightActive) {
+      this.state = 'patrol';
+    }
+
+    if (this.state === 'aggro' || this.state === 'attack') {
+      // Chase player
+      const dir = new THREE.Vector3(P.pos.x - this.pos.x, 0, P.pos.z - this.pos.z);
+      if (dir.length() > .1) {
+        dir.normalize().multiplyScalar(this.def.spd * dt);
+        this.pos.add(dir);
+      }
+      this.group.lookAt(P.pos.x, this.pos.y, P.pos.z);
+      // Melee
+      if (dist < this.def.atk && this.atkT <= 0) {
+        this.atkT = this.def.atkCd;
+        damagePlayer(this.def.dmg);
+      }
+    } else {
+      // Patrol
+      this.patrolT -= dt;
+      const toTarget = new THREE.Vector3(this.patrolTarget.x - this.pos.x, 0, this.patrolTarget.z - this.pos.z);
+      const td = toTarget.length();
+      if (td > 1 && this.patrolT > 0) {
+        const mv = toTarget.normalize().multiplyScalar(this.def.spd * .4 * dt);
+        this.pos.add(mv);
+        this.group.lookAt(this.patrolTarget.x, this.pos.y, this.patrolTarget.z);
+      } else { this.newPatrolTarget(); }
+    }
+
+    // Clamp to world + terrain
+    this.pos.x = Math.max(-WORLD+1, Math.min(WORLD-1, this.pos.x));
+    this.pos.z = Math.max(-WORLD+1, Math.min(WORLD-1, this.pos.z));
+    this.pos.y = tH(this.pos.x, this.pos.z) + this.def.sz * .5;
+    this.group.position.copy(this.pos);
+
+    // HP bar
+    const pct = this.hp / this.def.hp;
+    this.hpFg.scale.x = Math.max(.001, pct);
+    this.hpFg.position.x = -(1 - pct) * .45;
+    this.hpFg.material.color.setHex(pct > .5 ? 0x22c55e : pct > .25 ? 0xfbbf24 : 0xef4444);
+    this.hpGroup.quaternion.copy(cam.quaternion);
+  }
+
+  takeDamage(dmg) {
+    if (!this.alive) return;
+    this.hp -= dmg;
+    this.flashT = 1;
+    if (this.hp <= 0) this.kill();
+  }
+
+  kill() {
+    this.alive = false;
+    scene.remove(this.group);
+    for (const drop of this.def.drops) {
+      const amt = drop.mn + Math.floor(Math.random() * (drop.mx - drop.mn + 1));
+      if (amt > 0) { inv[drop.item] = (inv[drop.item] || 0) + amt; P.totalRes += amt; }
+    }
+    P.kills++;
+    gainXP(this.def.pts);
+    notify(`${this.type === 'raptor' ? '🦖' : this.type === 'trike' ? '🦕' : '☠'} ${this.type} éliminé  +${this.def.pts} XP`);
+    renderHotbar();
+  }
+}
+
+function attackCreatures() {
+  _rcAtk.setFromCamera({ x: 0, y: 0 }, cam);
+  let best = null, bestD = Infinity;
+  for (const c of creatures) {
+    if (!c.alive) continue;
+    const d = P.pos.distanceTo(c.pos);
+    if (d < 4 && d < bestD) { best = c; bestD = d; }
+  }
+  if (best) {
+    const dmg = 20 + (inv.axe > 0 ? 10 : 0);
+    best.takeDamage(dmg);
+    sfx.chop();
+  }
+}
+
+let creatureSpawnTimer = 0;
+function tickCreatureSpawns(dt) {
+  creatureSpawnTimer -= dt;
+  if (creatureSpawnTimer > 0) return;
+  const alive = creatures.filter(c => c.alive).length;
+  const maxC  = isNight(dayTime) ? 16 : 8;
+  if (alive < maxC) {
+    const types = isNight(dayTime) ? ['raptor','crawler','crawler'] : ['raptor','trike'];
+    const t = types[Math.floor(Math.random() * types.length)];
+    const c = new Creature(t);
+    creatures.push(c);
+  }
+  creatureSpawnTimer = isNight(dayTime) ? 8 : 18;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLAYER DAMAGE + LEVEL
+// ══════════════════════════════════════════════════════════════════════════════
+function damagePlayer(dmg) {
+  if (!P.alive) return;
+  P.hp = Math.max(0, P.hp - dmg);
+  sfx.damage();
+  document.getElementById('dmg-v').style.opacity = '1';
+  setTimeout(() => { document.getElementById('dmg-v').style.opacity = '0'; }, 200);
+  if (P.hp <= 0) killPlayer();
+  updateHUD();
+}
+
+function killPlayer() {
+  P.alive = false;
+  sfx.die();
+  setTimeout(() => {
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('ov-dead').style.display = 'flex';
+    document.getElementById('d-days').textContent  = dayCount;
+    document.getElementById('d-kills').textContent = P.kills;
+    document.getElementById('d-res').textContent   = P.totalRes;
+    document.getElementById('d-bld').textContent   = P.totalBuild;
+    document.exitPointerLock();
+    gameState = 'dead';
+  }, 1200);
+}
+
+function gainXP(amt) {
+  P.xp += amt;
+  const needed = P.level * 100;
+  if (P.xp >= needed) { P.xp -= needed; P.level++; sfx.levelUp(); notify(`✦ Niveau ${P.level} ! ✦`, '#818cf8'); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COLLISION (player vs resources + buildings)
+// ══════════════════════════════════════════════════════════════════════════════
+function collideWorld(pos) {
+  for (const r of resources) {
+    if (!r.alive) continue;
+    const dx = pos.x - r.pos.x, dz = pos.z - r.pos.z;
+    const d2 = dx*dx + dz*dz;
+    if (d2 < r.cr * r.cr && d2 > .0001) {
+      const d = Math.sqrt(d2);
+      const push = r.cr - d;
+      pos.x += (dx/d) * push;
+      pos.z += (dz/d) * push;
+    }
+  }
+  pos.x = Math.max(-WORLD+.6, Math.min(WORLD-.6, pos.x));
+  pos.z = Math.max(-WORLD+.6, Math.min(WORLD-.6, pos.z));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HUD
+// ══════════════════════════════════════════════════════════════════════════════
+function pct(v, m) { return (v / m * 100).toFixed(1) + '%'; }
+function updateHUD() {
+  document.getElementById('sf-hp').style.width   = pct(P.hp,  P.maxHp);
+  document.getElementById('sf-hu').style.width   = pct(P.hunger, P.maxHunger);
+  document.getElementById('sf-th').style.width   = pct(P.thirst, P.maxThirst);
+  document.getElementById('sf-st').style.width   = pct(P.stamina, P.maxStamina);
+  document.getElementById('day-n').textContent   = dayCount;
+  document.getElementById('day-t').textContent   = fmtTime(dayTime);
+  const [ph, pc] = phaseName(dayTime);
+  document.getElementById('day-p').textContent   = ph;
+  document.getElementById('day-p').style.color   = pc;
+  document.getElementById('xp-fill').style.width = ((P.xp / (P.level*100))*100).toFixed(1)+'%';
+  document.getElementById('lvl-lbl').textContent = `Niv.${P.level}`;
+}
+
+const HOTBAR_ICONS_FALLBACK = { axe:'🪓', pickaxe:'⛏', berry:'🫐', meat:'🥩',
+  bandage:'🩹', wall:'🧱', floor:'🟫', campfire:'🔥' };
+
+function renderHotbar() {
+  const hb = document.getElementById('hotbar');
+  hb.innerHTML = '';
+  HOTBAR_DEF.forEach((item, i) => {
+    const d = document.createElement('div');
+    d.className = 'hb' + (i === hotSlot ? ' on' : '');
+    const cnt = inv[item] || 0;
+    const ic  = ICONS[item] || HOTBAR_ICONS_FALLBACK[item] || '?';
+    d.innerHTML = `<span class="hb-k">${i+1}</span><span class="hb-ic">${ic}</span><span class="hb-lb">${NAMES[item]||item}</span>${cnt>0?`<span class="hb-ct">${cnt}</span>`:''}`;
+    hb.appendChild(d);
+  });
+}
+
+function notify(msg, col = '#84cc16') {
+  const el = document.createElement('div');
+  el.className = 'nf';
+  el.style.borderLeftColor = col;
+  el.style.color = col === '#84cc16' ? '#d1fae5' : col;
+  el.textContent = msg;
+  const c = document.getElementById('notifs');
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3400);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INVENTORY OVERLAY
+// ══════════════════════════════════════════════════════════════════════════════
+function renderInv() {
+  const rg = document.getElementById('inv-grid');
+  rg.innerHTML = '';
+  const items = ['wood','stone','fiber','berry','meat','axe','pickaxe','bandage','waterskin','campfire','wall','floor','roof'];
+  for (const k of items) {
+    const cnt = inv[k] || 0;
+    const el  = document.createElement('div');
+    el.className = 'ri';
+    el.innerHTML = `<span class="ric">${ICONS[k]}</span><span class="rin">${NAMES[k]}</span><span class="riv">${cnt}</span>`;
+    rg.appendChild(el);
+  }
+  const cl = document.getElementById('craft-list');
+  cl.innerHTML = '';
+  for (const r of RECIPES) {
+    const can = canCraft(r);
+    const costStr = Object.entries(r.cost).map(([k,v])=>`${v}${ICONS[k]}`).join(' ');
+    const el = document.createElement('div');
+    el.className = 'ci';
+    el.innerHTML = `<span class="cic">${r.icon}</span><div style="flex:1"><div class="cin">${r.name}</div><div class="cic2">${costStr}</div></div><button class="cb" ${can?'':'disabled'}>Fabriquer</button>`;
+    if (can) el.querySelector('button').addEventListener('click', () => { doCraft(r); });
+    cl.appendChild(el);
+  }
+}
+
+function toggleInv() {
+  if (gameState === 'playing') {
+    gameState = 'inventory';
+    document.exitPointerLock();
+    document.getElementById('ov-inv').style.display = 'flex';
+    renderInv();
+  } else if (gameState === 'inventory') {
+    closeInv();
+  }
+}
+window.closeInv = function() {
+  gameState = 'playing';
+  document.getElementById('ov-inv').style.display = 'none';
+  vp.requestPointerLock();
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MINIMAP
+// ══════════════════════════════════════════════════════════════════════════════
+const mmCtx = document.getElementById('minimap').getContext('2d');
+const MM = 110, MMS = MM / (WORLD * 2);
+function drawMinimap() {
+  mmCtx.clearRect(0, 0, MM, MM);
+  mmCtx.fillStyle = 'rgba(4,10,2,.92)'; mmCtx.fillRect(0,0,MM,MM);
+  // Terrain tint (rough biome)
+  mmCtx.fillStyle = '#1a3d10'; mmCtx.fillRect(0,0,MM,MM);
+  // Resources
+  for (const r of resources) {
+    if (!r.alive) continue;
+    mmCtx.fillStyle = r.type==='tree' ? '#2d6a1f' : r.type==='rock' ? '#6b6b6b' : '#3a6b1a';
+    const mx = MM/2 + r.pos.x * MMS, mz = MM/2 + r.pos.z * MMS;
+    mmCtx.fillRect(mx-1, mz-1, 2, 2);
+  }
+  // Structures
+  mmCtx.fillStyle = '#a0721e';
+  for (const s of placed) {
+    mmCtx.fillRect(MM/2+s.position.x*MMS-1.5, MM/2+s.position.z*MMS-1.5, 3, 3);
+  }
+  // Creatures
+  for (const c of creatures) {
+    if (!c.alive) continue;
+    mmCtx.fillStyle = c.type==='crawler' ? '#ff4444' : c.type==='trike' ? '#c8a21e' : '#44bb44';
+    mmCtx.beginPath();
+    mmCtx.arc(MM/2+c.pos.x*MMS, MM/2+c.pos.z*MMS, 2.5, 0, Math.PI*2);
+    mmCtx.fill();
+  }
+  // Player
+  mmCtx.fillStyle = '#60a5fa';
+  mmCtx.beginPath(); mmCtx.arc(MM/2+P.pos.x*MMS, MM/2+P.pos.z*MMS, 3.5, 0, Math.PI*2); mmCtx.fill();
+  // View dir
+  const dx = -Math.sin(P.yaw)*9, dz = -Math.cos(P.yaw)*9;
+  mmCtx.strokeStyle = '#93c5fd'; mmCtx.lineWidth = 1.5;
+  mmCtx.beginPath(); mmCtx.moveTo(MM/2+P.pos.x*MMS, MM/2+P.pos.z*MMS);
+  mmCtx.lineTo(MM/2+P.pos.x*MMS+dx, MM/2+P.pos.z*MMS+dz); mmCtx.stroke();
+  // Border
+  mmCtx.strokeStyle='rgba(255,255,255,.15)'; mmCtx.lineWidth=1;
+  mmCtx.strokeRect(.5,.5,MM-1,MM-1);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN LOOP
+// ══════════════════════════════════════════════════════════════════════════════
+let lastT = performance.now(), frames = 0, fpsAcc = 0;
+
+function loop(now) {
+  const dt = Math.min((now - lastT) / 1000, .05);
+  lastT = now;
+  frames++; fpsAcc += dt;
+  if (fpsAcc >= .5) {
+    document.getElementById('fps-c').textContent = Math.round(frames/fpsAcc) + ' FPS';
+    frames = 0; fpsAcc = 0;
+  }
+
+  // Animate campfire lights
+  campfireLights.forEach(fl => {
+    fl.light.intensity = fl.baseInt + Math.sin(now*.004)*.8 + Math.random()*.3;
+  });
+
+  if (gameState === 'playing' && P.alive) {
+    // ── Day/night ──────────────────────────────────────────────────────
+    dayTime += dt / DAY_DUR;
+    if (dayTime >= 1) { dayTime -= 1; dayCount++; }
+    lerpSky(dayTime);
+
+    // ── Player movement ───────────────────────────────────────────────
+    const running = KEYS['ShiftLeft'] || KEYS['ShiftRight'];
+    const spd = running && P.stamina > 0 ? SPD_R : SPD_W;
+    if (running && P.stamina > 0) P.stamina = Math.max(0, P.stamina - dt * 18);
+    else P.stamina = Math.min(P.maxStamina, P.stamina + dt * 10);
+
+    const fwd = new THREE.Vector3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+    const rgt = new THREE.Vector3( Math.cos(P.yaw), 0, -Math.sin(P.yaw));
+    const mov = new THREE.Vector3();
+    if (KEYS['KeyW']||KEYS['ArrowUp'])    mov.addScaledVector(fwd,  1);
+    if (KEYS['KeyS']||KEYS['ArrowDown'])  mov.addScaledVector(fwd, -1);
+    if (KEYS['KeyA']||KEYS['ArrowLeft'])  mov.addScaledVector(rgt, -1);
+    if (KEYS['KeyD']||KEYS['ArrowRight']) mov.addScaledVector(rgt,  1);
+    const isMoving = mov.lengthSq() > .01;
+    if (isMoving) { mov.normalize().multiplyScalar(spd * dt); P.pos.add(mov); }
+
+    // Footsteps
+    if (isMoving && P.grounded) {
+      P.footT -= dt;
+      if (P.footT <= 0) { sfx.footstep(); P.footT = running ? .28 : .45; }
+    }
+
+    collideWorld(P.pos);
+
+    // Gravity + jump
+    P.velY += GRAV * dt;
+    P.pos.y += P.velY * dt;
+    const groundY = tH(P.pos.x, P.pos.z) + EYE_H;
+    if (P.pos.y <= groundY) {
+      P.pos.y = groundY; P.velY = 0; P.grounded = true;
+    } else { P.grounded = false; }
+    if ((KEYS['Space']) && P.grounded && P.stamina > 10) {
+      P.velY = JUMP_V; P.grounded = false; P.stamina -= 10; sfx.jump();
+    }
+
+    // ── Camera ────────────────────────────────────────────────────────
+    cam.position.copy(P.pos);
+    cam.rotation.y = P.yaw;
+    cam.rotation.x = P.pitch;
+
+    // ── Survival drain ────────────────────────────────────────────────
+    P.hunger = Math.max(0, P.hunger - dt * (running ? 2.5 : 1.2) / 60);
+    P.thirst = Math.max(0, P.thirst - dt * (running ? 3.0 : 1.8) / 60);
+    if (P.hunger <= 0) { P.hp = Math.max(0, P.hp - dt * 2.5); if(P.hp<=0) killPlayer(); }
+    if (P.thirst <= 0) { P.hp = Math.max(0, P.hp - dt * 3.0); if(P.hp<=0) killPlayer(); }
+    // Natural regen if fed
+    if (P.hunger > 50 && P.thirst > 50 && P.hp < P.maxHp) {
+      P.hp = Math.min(P.maxHp, P.hp + dt * 1.5);
+    }
+
+    // ── Gathering ─────────────────────────────────────────────────────
+    gatherTick(dt);
+
+    // ── Building ghost ────────────────────────────────────────────────
+    tickBuild();
+
+    // ── Creatures ─────────────────────────────────────────────────────
+    tickCreatureSpawns(dt);
+    for (let i = creatures.length - 1; i >= 0; i--) {
+      creatures[i].update(dt);
+      if (!creatures[i].alive) creatures.splice(i, 1);
+    }
+
+    // ── HUD ───────────────────────────────────────────────────────────
+    updateHUD();
+    drawMinimap();
+  }
+
+  engine.renderer.render();
+  requestAnimationFrame(loop);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// START GAME
+// ══════════════════════════════════════════════════════════════════════════════
+function startGame() {
+  // Reset player
+  Object.assign(P, {
+    pos: new THREE.Vector3(0, tH(0,0)+EYE_H, 0),
+    velY:0, grounded:true, yaw:0, pitch:0,
+    hp:100, hunger:100, thirst:100, stamina:100,
+    xp:0, level:1, alive:true, kills:0, totalRes:0, totalBuild:0,
+  });
+  // Reset inventory
+  Object.keys(inv).forEach(k => { inv[k] = 0; });
+  // Give starter kit
+  inv.wood = 5; inv.stone = 3; inv.berry = 4;
+
+  // Clear placed structures
+  placed.forEach(m => scene.remove(m));
+  placed.length = 0;
+  campfireLights.forEach(fl => scene.remove(fl.light));
+  campfireLights.length = 0;
+
+  dayTime = 0.27; dayCount = 1;
+  gameState = 'playing';
+
+  document.getElementById('ov-start').style.display = 'none';
+  document.getElementById('ov-dead').style.display  = 'none';
+  document.getElementById('ov-pause').style.display = 'none';
+  document.getElementById('ov-inv').style.display   = 'none';
+  document.getElementById('hud').style.display      = 'block';
+
+  renderHotbar();
+  updateHUD();
+  vp.requestPointerLock();
+  notify('Bienvenue dans Wild Lands ! 🌿  Récoltez du bois et de la pierre.');
+  notify('Kit de départ: 5🪵 3🪨 4🫐 · Appuyez TAB pour crafting');
+}
+
+// Init
+buildTerrain();
+populateWorld();
+updateResMeshList();
+lerpSky(dayTime);
+
+// Preview cam
+cam.position.set(0, tH(0,0)+8, 12);
+cam.lookAt(0, tH(0,0), 0);
+
+window.startGame = startGame;
+window._gameReady = true;
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

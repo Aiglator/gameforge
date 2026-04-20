@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mcp-registry__search_mcp_registry",
+      "Read(//c/Users/rayan/.claude/**)",
+      "Read(//c/Users/$USERNAME/.claude/**)",
+      "Bash(npm list:*)",
+      "Bash(claude mcp:*)",
+      "Bash(chmod +x C:/xampp/htdocs/eemi/js/restart-claude.sh)",
+      "WebFetch(domain:api.pixellab.ai)",
+      "mcp__pixellab__create_character",
+      "mcp__pixellab__animate_character",
+      "mcp__pixellab__create_sidescroller_tileset",
+      "mcp__pixellab__get_character",
+      "mcp__pixellab__get_sidescroller_tileset",
+      "Bash(curl --fail -s \"https://api.pixellab.ai/mcp/sidescroller-tilesets/fc4e06fe-c6d4-4557-b300-1ebb370325e7/image\" -o \"C:/xampp/htdocs/eemi/js/assets/environment/tiles/ground/ground_asphalt.png\")",
+      "Bash(npm --version)"
+    ]
+  }
+}

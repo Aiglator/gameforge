@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html class="dark" lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Precision Editor | Game Engine</title>
+
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+<!-- CodeMirror -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+
+<!-- Three.js importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three":          "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "cannon-es":      "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          /* ── DESIGN.md Surface Tiering ── */
+          "bg":           "#0c1322",
+          "surf-low":     "#141b2b",
+          "surf":         "#1c2333",
+          "surf-high":    "#232a3a",
+          "surf-highest": "#2e3545",
+          /* ── Accent & Text ── */
+          "accent":       "#3b82f6",
+          "on-surf":      "#dce2f7",
+          "muted":        "#9ca3af",
+          "ghost":        "#424754",
+          /* ── Semantic ── */
+          "success":      "#22c55e",
+          "danger":       "#ef4444",
+        },
+        fontFamily: {
+          body:  ["Inter", "sans-serif"],
+          mono:  ["JetBrains Mono", "monospace"],
+        },
+        borderRadius: {
+          DEFAULT: "0.5rem",
+          lg:      "1rem",
+          xl:      "1.5rem",
+          full:    "9999px",
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  /* ── Material Symbols ─────────────────────────────────────────── */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* ── Play mode pulsing border ─────────────────────────────────── */
+  .playing-border {
+    animation: pulse-border 2s cubic-bezier(.4,0,.6,1) infinite;
+  }
+  @keyframes pulse-border {
+    0%,100% { border-color: rgba(34,197,94,.8); box-shadow: inset 0 0 24px rgba(34,197,94,.15); }
+    50%      { border-color: rgba(34,197,94,.2); box-shadow: inset 0 0 8px  rgba(34,197,94,.05); }
+  }
+
+  /* ── CodeMirror override ──────────────────────────────────────── */
+  #cm-container .CodeMirror {
+    height: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: #070e1d;
+    color: #f8f8f2;
+  }
+  #cm-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* ── Three.js canvas fills viewport ──────────────────────────── */
+  #viewport-container canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%  !important;
+    height: 100% !important;
+    z-index: 1;
+  }
+
+  /* ── Scrollbar ────────────────────────────────────────────────── */
+  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2e3545; border-radius: 2px; }
+
+  /* ── Range slider (DESIGN.md flat style) ─────────────────────── */
+  input[type=range] { accent-color: #3b82f6; }
+
+  /* ── Active tree row ──────────────────────────────────────────── */
+  .active-row { background-color: rgba(59,130,246,.25); color: #dce2f7; }
+
+  /* ── Ghost border helper ──────────────────────────────────────── */
+  .ghost-border { border: 1px solid rgba(66,71,84,.4); }
+</style>
+</head>
+
+<body class="bg-bg text-on-surf font-body overflow-hidden h-screen flex flex-col select-none">
+
+<!-- ── Hidden file inputs ────────────────────────────────────────────────────── -->
+<input id="file-input"   type="file" accept=".json"   style="display:none"/>
+<input id="sprite-input" type="file" accept="image/*" style="display:none"/>
+
+<!-- ═══ TOP APP BAR ══════════════════════════════════════════════════════════════ -->
+<header class="bg-surf-low flex justify-between items-center w-full px-4 h-12 z-50 shrink-0">
+
+  <!-- Left: Logo + Mode Switcher -->
+  <div class="flex items-center gap-5">
+    <span class="text-sm font-black tracking-tighter text-on-surf">PRECISION_ED</span>
+
+    <!-- DESIGN.md: Pill Segmented Control, rounded-full, no shadow -->
+    <nav class="flex items-center gap-0.5 bg-bg rounded-full p-1">
+      <button id="btn-mode-2d"
+        class="font-body text-[10px] uppercase tracking-[.1rem] font-medium text-muted hover:text-on-surf px-4 py-1 rounded-full transition-colors">
+        2D
+      </button>
+      <button id="btn-mode-3d"
+        class="font-body text-[10px] uppercase tracking-[.1rem] font-medium bg-accent text-on-surf rounded-full px-4 py-1 transition-colors">
+        3D
+      </button>
+      <button id="btn-mode-2d3d"
+        class="font-body text-[10px] uppercase tracking-[.1rem] font-medium text-muted hover:text-on-surf px-4 py-1 rounded-full transition-colors">
+        2D+3D
+      </button>
+    </nav>
+  </div>
+
+  <!-- Center: Create + Utility -->
+  <div class="flex items-center gap-1">
+    <!-- Add Object (context menu trigger) -->
+    <button id="btn-add-object"
+      class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surf-highest transition-colors"
+      title="Ajouter un objet (clic droit aussi)">
+      <span class="material-symbols-outlined text-accent">add</span>
+    </button>
+
+    <!-- Camera — hidden trigger, fired from context menu too -->
+    <span id="btn-add-camera"  class="hidden"></span>
+    <span id="btn-add-cube"    class="hidden"></span>
+    <span id="btn-add-sphere"  class="hidden"></span>
+    <span id="btn-add-plane"   class="hidden"></span>
+    <span id="btn-add-light"   class="hidden"></span>
+    <span id="btn-import-sprite" class="hidden"></span>
+
+    <!-- Global Lights -->
+    <button id="btn-global-lights"
+      class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surf-highest transition-colors"
+      title="Lumières globales">
+      <span class="material-symbols-outlined text-accent">light_mode</span>
+    </button>
+
+    <div class="w-px h-4 bg-ghost mx-1"></div>
+
+    <!-- Save / Load -->
+    <button id="btn-save"
+      class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surf-highest transition-colors"
+      title="Sauvegarder la scène">
+      <span class="material-symbols-outlined text-accent">save</span>
+    </button>
+    <button id="btn-load"
+      class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surf-highest transition-colors"
+      title="Charger une scène">
+      <span class="material-symbols-outlined text-accent">folder_open</span>
+    </button>
+
+    <div class="w-px h-4 bg-ghost mx-1"></div>
+
+    <!-- FPS display (hidden visually, updated by JS) -->
+    <span id="fps-display" class="text-[10px] font-mono text-muted w-14 text-right tabular-nums">0 FPS</span>
+
+    <div class="w-px h-4 bg-ghost mx-1"></div>
+
+    <!-- Play / Stop -->
+    <button id="btn-play"
+      class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-success/20 transition-colors"
+      title="Play (F5)">
+      <span class="material-symbols-outlined text-success" style="font-variation-settings:'FILL' 1;">play_arrow</span>
+    </button>
+    <button id="btn-stop"
+      class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-danger/20 transition-colors opacity-50 cursor-not-allowed"
+      title="Stop" disabled>
+      <span class="material-symbols-outlined text-danger">stop</span>
+    </button>
+
+    <!-- Play badge (hidden — shown when playing) -->
+    <div id="play-badge"
+      class="hidden items-center gap-2 bg-success text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-[.15em]">
+      <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+      PLAYING
+    </div>
+  </div>
+</header>
+
+<!-- ═══ MAIN ══════════════════════════════════════════════════════════════════════ -->
+<main class="flex-1 flex overflow-hidden">
+
+  <!-- ── LEFT ICON RAIL ───────────────────────────────────────────────────────── -->
+  <aside class="bg-surf-low flex flex-col h-full w-12 z-40 shrink-0">
+    <div class="flex-1 flex flex-col items-center py-4 gap-2">
+      <!-- Levels -->
+      <button id="lp-btn-levels"
+        class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-on-surf hover:bg-surf-highest transition-colors"
+        title="Niveaux">
+        <span class="material-symbols-outlined">stacks</span>
+      </button>
+      <!-- World Gen -->
+      <button id="lp-btn-worldgen"
+        class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-on-surf hover:bg-surf-highest transition-colors"
+        title="Génération de monde">
+        <span class="material-symbols-outlined">terrain</span>
+      </button>
+      <div class="w-5 h-px bg-ghost my-1"></div>
+      <!-- Placeholder settings -->
+      <button class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-on-surf hover:bg-surf-highest transition-colors" title="Réglages">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+    </div>
+    <!-- MCP status dot -->
+    <div class="p-2 flex justify-center" title="MCP bridge">
+      <div id="mcp-dot" class="w-2 h-2 rounded-full bg-ghost" title="MCP déconnecté"></div>
+    </div>
+  </aside>
+
+  <!-- ── LEFT COLLAPSIBLE PANEL ────────────────────────────────────────────────── -->
+  <aside id="left-panel"
+    class="bg-surf-low flex flex-col h-full z-30 shrink-0 w-0 overflow-hidden transition-all duration-200">
+
+    <!-- ── LEVELS TAB ───────────────────────────────────────────────────────── -->
+    <div id="left-panel-levels" class="lp-content hidden flex flex-col h-full w-64">
+      <!-- Header -->
+      <div class="bg-surf-high px-3 py-2 flex items-center justify-between shrink-0">
+        <span class="text-[10px] font-bold uppercase tracking-[.1rem] text-muted">Niveaux</span>
+        <div class="flex gap-1">
+          <button id="btn-level-save" class="text-[9px] text-muted hover:text-on-surf px-1" title="Sauvegarder niveau courant">
+            <span class="material-symbols-outlined" style="font-size:13px">save</span>
+          </button>
+          <button id="btn-level-add" class="text-[9px] text-accent hover:text-blue-300 px-1" title="Nouveau niveau">
+            <span class="material-symbols-outlined" style="font-size:13px">add</span>
+          </button>
+        </div>
+      </div>
+      <!-- Level list -->
+      <div id="levels-list" class="flex-1 overflow-y-auto p-1.5 space-y-0.5 min-h-0"></div>
+    </div>
+
+    <!-- ── WORLDGEN TAB ─────────────────────────────────────────────────────── -->
+    <div id="left-panel-worldgen" class="lp-content hidden flex flex-col h-full w-64 overflow-y-auto">
+      <!-- Header -->
+      <div class="bg-surf-high px-3 py-2 shrink-0">
+        <span class="text-[10px] font-bold uppercase tracking-[.1rem] text-muted">Génération de monde</span>
+      </div>
+      <div class="p-3 space-y-3 text-xs">
+        <!-- Theme -->
+        <div>
+          <p class="text-[10px] text-muted mb-1 uppercase tracking-[.08rem]">Thème</p>
+          <select id="wg-theme" class="w-full bg-surf-highest text-on-surf text-xs rounded px-2 py-1">
+            <option value="post-apo">Post-Apocalyptique</option>
+            <option value="plains">Plaines</option>
+            <option value="dungeon">Donjon</option>
+          </select>
+        </div>
+        <!-- Seed -->
+        <div class="flex items-center gap-2">
+          <label class="text-[10px] text-muted w-12 shrink-0">Seed</label>
+          <input id="wg-seed" type="number" value="0" placeholder="0 = aléatoire"
+            class="flex-1 bg-surf-highest text-on-surf text-[10px] rounded px-2 py-1"/>
+        </div>
+        <!-- Width / Depth -->
+        <div class="flex items-center gap-2">
+          <label class="text-[10px] text-muted w-12 shrink-0">Largeur</label>
+          <input id="wg-width" type="number" value="80" min="16" max="256"
+            class="flex-1 bg-surf-highest text-on-surf text-[10px] rounded px-2 py-1"/>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-[10px] text-muted w-12 shrink-0">Profond.</label>
+          <input id="wg-depth" type="number" value="80" min="16" max="256"
+            class="flex-1 bg-surf-highest text-on-surf text-[10px] rounded px-2 py-1"/>
+        </div>
+        <!-- Trees / Ruins -->
+        <div class="flex items-center gap-2">
+          <label class="text-[10px] text-muted w-12 shrink-0">Arbres</label>
+          <input id="wg-trees" type="number" value="40" min="0" max="200"
+            class="flex-1 bg-surf-highest text-on-surf text-[10px] rounded px-2 py-1"/>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-[10px] text-muted w-12 shrink-0">Ruines</label>
+          <input id="wg-ruins" type="number" value="10" min="0" max="100"
+            class="flex-1 bg-surf-highest text-on-surf text-[10px] rounded px-2 py-1"/>
+        </div>
+        <!-- Actions -->
+        <button id="btn-worldgen-generate"
+          class="w-full py-2 bg-accent text-white text-[11px] font-bold rounded hover:bg-blue-500 transition-colors">
+          Générer le monde
+        </button>
+        <button id="btn-worldgen-clear"
+          class="w-full py-1.5 bg-surf-highest text-muted text-[11px] rounded hover:bg-danger/20 hover:text-danger transition-colors">
+          Effacer le monde
+        </button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── VIEWPORT ──────────────────────────────────────────────────────────────── -->
+  <!-- DESIGN.md: bg is the deepest surface. border-2 border-transparent toggles to playing-border -->
+  <section id="viewport-container"
+    class="flex-1 relative bg-bg overflow-hidden border-2 border-transparent cursor-crosshair"
+    oncontextmenu="return false">
+
+    <!-- Background dot grid (behind canvas z-index) -->
+    <div class="absolute inset-0 z-0 pointer-events-none">
+      <div class="absolute inset-0 bg-[radial-gradient(#1c2333_1px,transparent_1px)] [background-size:24px_24px] opacity-40"></div>
+    </div>
+
+    <!-- Three.js canvas mounts here (z-1 via CSS) -->
+
+    <!-- ── Gizmo tools (above canvas) ─────────────────────────────────────────── -->
+    <div class="absolute top-4 left-4 z-20 flex flex-col gap-1">
+      <!-- DESIGN.md: Glassmorphism for floating HUDs -->
+      <div class="bg-surf/70 backdrop-blur-[20px] ghost-border p-1 rounded-lg flex flex-col gap-1">
+        <button id="gizmo-translate"
+          class="w-8 h-8 flex items-center justify-center rounded bg-accent text-white transition-colors"
+          title="Translate (W)">
+          <span class="material-symbols-outlined">open_with</span>
+        </button>
+        <button id="gizmo-rotate"
+          class="w-8 h-8 flex items-center justify-center rounded text-muted hover:bg-surf-highest transition-colors"
+          title="Rotate (E)">
+          <span class="material-symbols-outlined">360</span>
+        </button>
+        <button id="gizmo-scale"
+          class="w-8 h-8 flex items-center justify-center rounded text-muted hover:bg-surf-highest transition-colors"
+          title="Scale (R)">
+          <span class="material-symbols-outlined">aspect_ratio</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── FPS counter ────────────────────────────────────────────────────────── -->
+    <div class="absolute top-4 right-4 z-20 pointer-events-none">
+      <div class="bg-bg/70 backdrop-blur ghost-border px-2 py-1 rounded text-[10px] font-mono text-accent tabular-nums"
+           id="fps-counter">0 FPS</div>
+    </div>
+
+    <!-- ── Viewport mode label ───────────────────────────────────────────────── -->
+    <div class="absolute bottom-4 left-4 z-20 pointer-events-none">
+      <span id="viewport-mode-label"
+        class="text-[10px] font-mono text-muted uppercase tracking-widest bg-bg/50 px-2 py-1 rounded">
+        Perspective 3D
+      </span>
+    </div>
+
+    <!-- ── Axes indicator ────────────────────────────────────────────────────── -->
+    <div class="absolute bottom-4 right-4 z-20 pointer-events-none flex items-center gap-1 bg-bg/50 px-2 py-1 rounded ghost-border">
+      <span class="text-[10px] font-mono font-bold text-danger">X</span>
+      <span class="text-[10px] font-mono font-bold text-success">Y</span>
+      <span class="text-[10px] font-mono font-bold text-accent">Z</span>
+    </div>
+
+    <!-- ── GLTF Drop zone (hidden — shown on dragover) ───────────────────────── -->
+    <div id="drop-zone"
+      class="hidden absolute inset-0 m-8 rounded-xl z-30 bg-accent/5 backdrop-blur-sm border-2 border-dashed border-accent/40 flex flex-col items-center justify-center pointer-events-none">
+      <span class="material-symbols-outlined text-5xl text-accent mb-3">upload_file</span>
+      <p class="text-sm font-bold">Drop GLTF Model</p>
+      <p class="text-xs text-muted mt-1">Glisser un fichier .glb / .gltf dans la scène</p>
+    </div>
+
+  </section>
+
+  <!-- ── RIGHT INSPECTOR SIDEBAR ──────────────────────────────────────────────── -->
+  <!-- DESIGN.md: surf-low background, no hard borders between sections -->
+  <aside class="w-72 bg-surf-low flex flex-col h-full z-40 shrink-0">
+
+    <!-- Scene Tree (top 1/3) -->
+    <section class="h-1/3 flex flex-col min-h-0">
+      <!-- DESIGN.md: 10px / all-caps / 0.1rem section header -->
+      <div class="bg-surf-high px-3 py-2 flex items-center justify-between shrink-0">
+        <span class="text-[10px] font-bold uppercase tracking-[.1rem] text-muted">Scene Tree</span>
+        <span id="entity-count" class="text-[9px] font-mono text-ghost">0 entités</span>
+      </div>
+      <!-- Empty state / entity list -->
+      <div id="scene-tree" class="flex-1 overflow-y-auto p-1.5 space-y-0.5 min-h-0">
+        <!-- Empty state shown until entities exist -->
+        <div class="flex flex-col items-center justify-center h-full opacity-30 py-6" id="scene-empty-state">
+          <span class="material-symbols-outlined text-3xl mb-2">mouse</span>
+          <p class="text-[10px] uppercase tracking-[.05rem] text-center leading-relaxed">Clic droit dans le<br/>viewport pour ajouter</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Inspector (middle 1/3) — DESIGN.md: surf separates from surf-low via tonal shift -->
+    <section class="h-1/3 flex flex-col min-h-0 bg-surf">
+      <div class="bg-surf-high px-3 py-2 shrink-0">
+        <span class="text-[10px] font-bold uppercase tracking-[.1rem] text-muted">Inspector</span>
+      </div>
+      <div id="inspector-content" class="flex-1 overflow-y-auto p-3 space-y-2 min-h-0 text-xs">
+        <p class="text-muted italic text-center pt-4">Sélectionnez une entité</p>
+      </div>
+    </section>
+
+    <!-- Script Editor (bottom 1/3) — DESIGN.md: surf-container-lowest for deep wells -->
+    <section class="h-1/3 flex flex-col min-h-0">
+      <div class="bg-surf-high px-3 py-2 flex items-center justify-between shrink-0">
+        <span id="script-entity-name" class="text-[10px] font-bold uppercase tracking-[.1rem] text-accent font-mono">Script</span>
+        <div class="flex items-center gap-2">
+          <button id="btn-compile"
+            class="text-[9px] bg-accent/20 text-accent px-2 py-0.5 rounded hover:bg-accent/30 transition-colors">
+            ▶ Compile
+          </button>
+          <button id="btn-save-script"
+            class="text-[9px] bg-surf-highest text-on-surf px-2 py-0.5 rounded hover:bg-ghost/50 transition-colors">
+            Save
+          </button>
+        </div>
+      </div>
+      <!-- CodeMirror mounts here — must be empty -->
+      <div id="cm-container" class="flex-1 min-h-0"></div>
+      <!-- script-errors OUTSIDE cm-container so CodeMirror doesn't destroy it -->
+      <div id="script-errors"
+        class="hidden bg-danger/20 text-danger text-[10px] font-mono px-3 py-1.5 max-h-16 overflow-auto border-t border-danger/20 shrink-0">
+      </div>
+    </section>
+
+  </aside>
+
+</main>
+
+<!-- ═══ BOTTOM STATUS BAR ═════════════════════════════════════════════════════════ -->
+<footer class="h-6 bg-surf-low flex items-center justify-between px-3 shrink-0" style="border-top:1px solid rgba(66,71,84,.25)">
+  <div class="flex items-center gap-4">
+    <!-- Selected entity + coords -->
+    <div class="flex items-center gap-1.5 text-accent" id="status-scene">
+      <span class="material-symbols-outlined" style="font-size:13px;">videocam</span>
+      <span class="text-[10px] font-mono">—</span>
+    </div>
+    <div class="w-px h-3 bg-ghost"></div>
+    <div class="flex items-center gap-3 text-[10px] font-mono tabular-nums" id="status-entities">
+      <span id="entity-count-bar">0 entités</span>
+      <span class="flex items-center gap-1">
+        <span class="text-danger font-bold">X</span>
+        <span id="coord-x" class="text-muted">—</span>
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="text-success font-bold">Y</span>
+        <span id="coord-y" class="text-muted">—</span>
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="text-accent font-bold">Z</span>
+        <span id="coord-z" class="text-muted">—</span>
+      </span>
+    </div>
+  </div>
+  <div class="flex items-center gap-3 text-[10px] font-mono">
+    <span class="text-ghost uppercase tracking-widest">Three.js r160</span>
+    <div class="w-px h-3 bg-ghost"></div>
+    <div class="flex items-center gap-1.5 text-success">
+      <span class="material-symbols-outlined" style="font-size:13px;font-variation-settings:'FILL' 1;">check_circle</span>
+      <span class="uppercase tracking-widest font-bold">Ready</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ── Context menu blocker ───────────────────────────────────────────────────── -->
+<script>
+window.addEventListener('contextmenu', function(e) {
+  const vp = document.getElementById('viewport-container');
+  if (vp && vp.contains(e.target)) {
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    return false;
+  }
+}, true);
+</script>
+
+<script type="module" src="editor.js"></script>
+</body>
+</html>

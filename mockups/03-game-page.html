@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>GameForge — Nexus Runner</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#070e1d;--surface:#0c1322;--sc:#141b2b;--sh:#1c2538;--shh:#232d42;--accent:#3b82f6;--secondary:#4edea3;--primary:#adc6ff;--on:#dce2f8;--onv:#8b98b4;--err:#f87171;--muted:#64748b}
+body{background:var(--bg);color:var(--on);font-family:'Inter',sans-serif}
+.ms{font-family:'Material Symbols Outlined';font-size:18px;line-height:1;vertical-align:middle}
+nav{background:var(--sc);border-bottom:1px solid var(--sh);display:flex;align-items:center;padding:0 32px;height:52px;gap:32px;position:sticky;top:0;z-index:100}
+nav .logo{font-weight:900;font-size:15px;letter-spacing:2px;color:var(--secondary)}
+nav .logo span{color:var(--primary)}
+nav a{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--onv);text-decoration:none}
+nav .spacer{flex:1}
+nav .btn{background:var(--secondary);color:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;padding:7px 16px;border:none;cursor:pointer}
+
+.breadcrumb{padding:16px 32px;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--sh)}
+.breadcrumb span{color:var(--secondary)}
+
+.page{max-width:1100px;margin:0 auto;padding:32px;display:grid;grid-template-columns:1fr 280px;gap:32px}
+
+/* LEFT */
+.main-image{aspect-ratio:16/9;background:linear-gradient(135deg,#0a1628,#1a3a5c);position:relative;margin-bottom:16px;display:flex;align-items:center;justify-content:center;font-size:80px;overflow:hidden}
+.main-image::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(7,14,29,.5),transparent)}
+.play-btn-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);cursor:pointer}
+.play-btn-overlay .ms{font-size:64px;color:#fff;opacity:.9}
+.screenshots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:24px}
+.screenshot{aspect-ratio:16/9;background:var(--sh);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;border:2px solid transparent;transition:border-color .15s}
+.screenshot:first-child{border-color:var(--accent)}
+.screenshot:hover{border-color:var(--shh)}
+
+.game-title{font-size:24px;font-weight:900;margin-bottom:8px}
+.game-meta-row{display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.badge{font-size:8px;text-transform:uppercase;letter-spacing:2px;padding:4px 10px;border:1px solid var(--sh);color:var(--onv)}
+.badge.cat{background:rgba(59,130,246,.1);border-color:var(--accent);color:var(--accent)}
+.badge.free{background:rgba(78,222,163,.1);border-color:var(--secondary);color:var(--secondary)}
+.stat-row{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted)}
+
+.section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:var(--onv);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--sh)}
+.description{font-size:12px;color:var(--onv);line-height:1.9;margin-bottom:24px}
+
+.features-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px}
+.feature-item{background:var(--sc);border:1px solid var(--sh);padding:12px;display:flex;align-items:flex-start;gap:10px}
+.feature-icon{font-size:18px;flex-shrink:0}
+.feature-text h4{font-size:10px;font-weight:700;color:var(--on);margin-bottom:2px}
+.feature-text p{font-size:9px;color:var(--muted);line-height:1.5}
+
+.tech-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:24px}
+.tech-tag{background:var(--sh);font-size:9px;font-family:'JetBrains Mono',monospace;padding:4px 10px;color:var(--onv)}
+
+/* COMMENTS */
+.comment{background:var(--sc);border:1px solid var(--sh);padding:16px;margin-bottom:8px}
+.comment-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.avatar{width:28px;height:28px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.comment-name{font-size:11px;font-weight:700}
+.comment-date{font-size:9px;color:var(--muted);margin-left:auto}
+.stars{color:#fbbf24;font-size:12px;margin-bottom:6px}
+.comment p{font-size:11px;color:var(--onv);line-height:1.7}
+
+/* RIGHT SIDEBAR */
+.sidebar{position:sticky;top:72px;align-self:start}
+.sidebar-card{background:var(--sc);border:1px solid var(--sh);padding:20px;margin-bottom:16px}
+.price-display{font-size:32px;font-weight:900;color:var(--on);margin-bottom:4px}
+.price-display.free-text{color:var(--secondary)}
+.play-now-btn{width:100%;background:var(--secondary);color:var(--bg);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;padding:14px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
+.wishlist-btn{width:100%;background:none;border:1px solid var(--sh);color:var(--onv);font-size:10px;text-transform:uppercase;letter-spacing:2px;padding:10px;cursor:pointer}
+.wishlist-btn:hover{border-color:var(--shh);color:var(--on)}
+.meta-table{width:100%;margin-top:16px;border-top:1px solid var(--sh);padding-top:16px}
+.meta-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--sh)}
+.meta-row:last-child{border-bottom:none}
+.meta-key{font-size:9px;text-transform:uppercase;color:var(--muted);letter-spacing:1px}
+.meta-val{font-size:10px;color:var(--onv)}
+.dev-card{display:flex;align-items:center;gap:12px}
+.dev-avatar{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--secondary));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff}
+.dev-name{font-size:11px;font-weight:700}
+.dev-sub{font-size:9px;color:var(--muted)}
+.dev-badge{font-size:8px;background:rgba(78,222,163,.1);color:var(--secondary);border:1px solid var(--secondary);padding:2px 8px;display:inline-block;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+</style>
+</head>
+<body>
+<nav>
+  <div class="logo">Game<span>Forge</span></div>
+  <a href="#">Accueil</a><a href="#">Catalogue</a>
+  <div class="spacer"></div>
+  <button class="btn">Mon compte</button>
+</nav>
+
+<div class="breadcrumb">Accueil › Catalogue › Plateforme › <span>Nexus Runner</span></div>
+
+<div class="page">
+  <div>
+    <div class="main-image">🏃
+      <div class="play-btn-overlay"><span class="ms" style="font-size:64px">play_circle</span></div>
+    </div>
+    <div class="screenshots">
+      <div class="screenshot">🏃</div>
+      <div class="screenshot">⚡</div>
+      <div class="screenshot">💰</div>
+      <div class="screenshot">👾</div>
+    </div>
+
+    <div class="game-title">Nexus Runner</div>
+    <div class="game-meta-row">
+      <span class="badge cat">Plateforme</span>
+      <span class="badge free">Gratuit</span>
+      <span class="badge">Nexus Engine v2</span>
+      <div class="stat-row"><span class="ms" style="font-size:14px">person</span>0 joueurs</div>
+      <div class="stat-row"><span class="ms" style="font-size:14px">calendar_today</span>Avril 2026</div>
+    </div>
+
+    <div class="section-title">Description</div>
+    <p class="description">
+      Nexus Runner est le premier jeu publié sur GameForge, développé entièrement avec l'API Canvas 2D du navigateur — sans aucune bibliothèque externe de jeu. C'est un platformer 2D à défilement horizontal avec une génération de niveaux procédurale infinie.<br/><br/>
+      Sautez par-dessus les ennemis, collectez des pièces, évitez les piques et battez votre propre record de distance. Chaque partie est différente grâce à l'algorithme de génération par chunks.
+    </p>
+
+    <div class="section-title">Fonctionnalités</div>
+    <div class="features-grid">
+      <div class="feature-item"><span class="feature-icon">🌍</span><div class="feature-text"><h4>Génération procédurale</h4><p>Niveaux infinis générés à la volée par chunks</p></div></div>
+      <div class="feature-item"><span class="feature-icon">⚡</span><div class="feature-text"><h4>Double saut</h4><p>Saut variable selon la durée d'appui + double saut</p></div></div>
+      <div class="feature-item"><span class="feature-icon">👾</span><div class="feature-text"><h4>Ennemis IA</h4><p>Patrouille, stomp pour tuer, dégâts au contact</p></div></div>
+      <div class="feature-item"><span class="feature-icon">💰</span><div class="feature-text"><h4>Système de score</h4><p>Pièces +10pts, stomp +50pts, distance en mètres</p></div></div>
+      <div class="feature-item"><span class="feature-icon">❤️</span><div class="feature-text"><h4>3 points de vie</h4><p>Invincibilité 90 frames après chaque dégât</p></div></div>
+      <div class="feature-item"><span class="feature-icon">✨</span><div class="feature-text"><h4>Effets visuels</h4><p>Squash/stretch, particules colorées, étoiles</p></div></div>
+    </div>
+
+    <div class="section-title">Technologies utilisées</div>
+    <div class="tech-tags">
+      <span class="tech-tag">Canvas 2D API</span>
+      <span class="tech-tag">requestAnimationFrame</span>
+      <span class="tech-tag">AABB Collision</span>
+      <span class="tech-tag">Procédural Generation</span>
+      <span class="tech-tag">Vanilla JavaScript</span>
+      <span class="tech-tag">HTML5</span>
+      <span class="tech-tag">Nexus Engine v2.0</span>
+    </div>
+
+    <div class="section-title">Avis joueurs</div>
+    <div class="comment">
+      <div class="comment-header">
+        <div class="avatar">R</div>
+        <div><div class="comment-name">rayan.chattaoui</div></div>
+        <span class="comment-date">Avril 2026</span>
+      </div>
+      <div class="stars">★★★★★</div>
+      <p>Super jeu, simple et addictif. La génération procédurale est vraiment bien faite, chaque partie est différente !</p>
+    </div>
+    <div class="comment">
+      <div class="comment-header">
+        <div class="avatar" style="background:var(--secondary)">D</div>
+        <div><div class="comment-name">demo_developer</div></div>
+        <span class="comment-date">Avril 2026</span>
+      </div>
+      <div class="stars">★★★★☆</div>
+      <p>Impressionnant qu'il soit fait avec Canvas pur. Les ennemis ont un bon comportement.</p>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-card">
+      <div class="price-display free-text">Gratuit</div>
+      <div style="font-size:9px;color:var(--muted);margin-bottom:16px">Jouer dans le navigateur, aucun téléchargement</div>
+      <button class="play-now-btn"><span class="ms" style="font-size:16px">play_circle</span>Jouer maintenant</button>
+      <button class="wishlist-btn"><span class="ms" style="font-size:14px">favorite_border</span> Ajouter aux favoris</button>
+      <div class="meta-table">
+        <div class="meta-row"><span class="meta-key">Genre</span><span class="meta-val">Plateforme 2D</span></div>
+        <div class="meta-row"><span class="meta-key">Moteur</span><span class="meta-val">Nexus Engine v2</span></div>
+        <div class="meta-row"><span class="meta-key">Technologie</span><span class="meta-val">Canvas 2D API</span></div>
+        <div class="meta-row"><span class="meta-key">Joueurs</span><span class="meta-val">0 total</span></div>
+        <div class="meta-row"><span class="meta-key">Publié</span><span class="meta-val">Avril 2026</span></div>
+        <div class="meta-row"><span class="meta-key">Plateforme</span><span class="meta-val">Navigateur web</span></div>
+      </div>
+    </div>
+
+    <div class="sidebar-card">
+      <div class="section-title" style="font-size:9px;margin-bottom:12px">Développeur</div>
+      <div class="dev-card">
+        <div class="dev-avatar">D</div>
+        <div>
+          <div class="dev-name">Demo Developer</div>
+          <div class="dev-sub">demo@gameforge.dev</div>
+          <div class="dev-badge">Pro Developer</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-card">
+      <div class="section-title" style="font-size:9px;margin-bottom:12px">Partager</div>
+      <div style="display:flex;gap:8px">
+        <button style="flex:1;background:var(--sh);border:none;color:var(--onv);padding:8px;font-size:9px;cursor:pointer;text-transform:uppercase;letter-spacing:1px">Copier lien</button>
+        <button style="flex:1;background:var(--sh);border:none;color:var(--onv);padding:8px;font-size:9px;cursor:pointer;text-transform:uppercase;letter-spacing:1px">Twitter</button>
+      </div>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>GameForge — Connexion</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#070e1d;--surface:#0c1322;--sc:#141b2b;--sh:#1c2538;--shh:#232d42;--accent:#3b82f6;--secondary:#4edea3;--primary:#adc6ff;--on:#dce2f8;--onv:#8b98b4;--err:#f87171;--muted:#64748b}
+body{background:var(--bg);color:var(--on);font-family:'Inter',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+.ms{font-family:'Material Symbols Outlined';font-size:18px;line-height:1;vertical-align:middle}
+
+/* FULL PAGE BACKGROUND */
+.bg-pattern{position:fixed;inset:0;z-index:0;overflow:hidden}
+.bg-pattern::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 20% 40%,rgba(59,130,246,.08) 0%,transparent 50%),radial-gradient(circle at 80% 70%,rgba(78,222,163,.06) 0%,transparent 40%)}
+.grid-lines{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:40px 40px}
+
+nav{background:var(--sc);border-bottom:1px solid var(--sh);display:flex;align-items:center;padding:0 32px;height:52px;gap:32px;position:relative;z-index:10}
+nav .logo{font-weight:900;font-size:15px;letter-spacing:2px;color:var(--secondary)}
+nav .logo span{color:var(--primary)}
+nav .spacer{flex:1}
+nav a{font-size:10px;color:var(--muted);text-decoration:none;text-transform:uppercase;letter-spacing:2px}
+
+.auth-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 16px;position:relative;z-index:1}
+.auth-card{background:var(--sc);border:1px solid var(--sh);width:100%;max-width:420px;padding:0}
+
+/* TABS */
+.tabs{display:flex;border-bottom:1px solid var(--sh)}
+.tab{flex:1;padding:14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;text-align:center;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted)}
+.tab.active{color:var(--secondary);border-bottom-color:var(--secondary)}
+.tab:hover:not(.active){color:var(--onv);background:var(--sh)}
+
+.form-body{padding:28px}
+.form-logo{text-align:center;margin-bottom:24px}
+.form-logo .logo-text{font-size:20px;font-weight:900;color:var(--secondary);letter-spacing:3px}
+.form-logo .logo-sub{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:3px;margin-top:4px}
+
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--onv);margin-bottom:6px}
+.form-control{width:100%;background:var(--sh);border:1px solid var(--shh);color:var(--on);font-size:12px;padding:10px 12px;outline:none;font-family:'Inter',sans-serif;transition:border-color .15s}
+.form-control:focus{border-color:var(--accent)}
+.form-control::placeholder{color:var(--muted)}
+.form-control.error{border-color:var(--err)}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.form-hint{font-size:9px;color:var(--muted);margin-top:4px}
+.form-hint.error-text{color:var(--err)}
+
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--sh)}
+.divider span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:2px}
+
+.btn-submit{width:100%;background:var(--secondary);color:var(--bg);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;padding:13px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
+.btn-submit:hover{background:#3bc48e}
+
+.social-btn{width:100%;background:var(--sh);border:1px solid var(--shh);color:var(--onv);font-size:10px;padding:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;text-transform:uppercase;letter-spacing:2px;transition:all .15s}
+.social-btn:hover{background:var(--shh);color:var(--on)}
+
+.forgot{text-align:right;margin-top:-8px;margin-bottom:16px}
+.forgot a{font-size:9px;color:var(--accent);text-decoration:none;text-transform:uppercase;letter-spacing:1px}
+
+.auth-footer{padding:16px 28px;border-top:1px solid var(--sh);display:flex;align-items:center;justify-content:space-between}
+.auth-footer span{font-size:10px;color:var(--muted)}
+.auth-footer a{font-size:10px;color:var(--accent);text-decoration:none}
+
+/* PASSWORD STRENGTH */
+.strength-bar{height:3px;background:var(--sh);margin-top:6px;overflow:hidden}
+.strength-fill{height:100%;width:60%;background:var(--secondary);transition:width .3s}
+
+/* TERMS */
+.terms-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:16px}
+.terms-row input[type=checkbox]{accent-color:var(--secondary);margin-top:2px;width:14px;height:14px}
+.terms-row label{font-size:9px;color:var(--muted);line-height:1.6}
+.terms-row a{color:var(--accent)}
+
+/* FEATURES */
+.side-features{background:var(--bg);padding:32px;border-right:1px solid var(--sh);display:none}
+
+/* SUCCESS STATE (shown for demo) */
+.success-banner{background:rgba(78,222,163,.1);border:1px solid rgba(78,222,163,.3);padding:12px 16px;display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.success-banner span{font-size:10px;color:var(--secondary)}
+</style>
+</head>
+<body>
+<div class="bg-pattern"><div class="grid-lines"></div></div>
+
+<nav>
+  <div class="logo">Game<span>Forge</span></div>
+  <div class="spacer"></div>
+  <a href="#">Retour à l'accueil</a>
+</nav>
+
+<div class="auth-wrap">
+  <div style="width:100%;max-width:420px">
+
+    <!-- Login Card -->
+    <div class="auth-card" style="margin-bottom:32px">
+      <div class="tabs">
+        <button class="tab active">Connexion</button>
+        <button class="tab">Inscription</button>
+      </div>
+      <div class="form-body">
+        <div class="form-logo">
+          <div class="logo-text">GameForge</div>
+          <div class="logo-sub">Connectez-vous à votre compte</div>
+        </div>
+
+        <div class="form-group">
+          <label>Adresse email</label>
+          <input class="form-control" type="email" placeholder="vous@exemple.com" value="demo@gameforge.dev"/>
+        </div>
+        <div class="form-group">
+          <label>Mot de passe</label>
+          <input class="form-control" type="password" placeholder="••••••••" value="demo123456"/>
+        </div>
+        <div class="forgot"><a href="#">Mot de passe oublié ?</a></div>
+        <button class="btn-submit"><span class="ms" style="font-size:16px">login</span>Se connecter</button>
+
+        <div class="divider"><span>ou continuer avec</span></div>
+        <button class="social-btn">🐙 GitHub</button>
+        <button class="social-btn">🔵 Google</button>
+      </div>
+      <div class="auth-footer">
+        <span>Pas encore de compte ?</span>
+        <a href="#">S'inscrire gratuitement</a>
+      </div>
+    </div>
+
+    <!-- Register Card -->
+    <div class="auth-card">
+      <div class="tabs">
+        <button class="tab">Connexion</button>
+        <button class="tab active">Inscription</button>
+      </div>
+      <div class="form-body">
+        <div class="form-logo">
+          <div class="logo-text">GameForge</div>
+          <div class="logo-sub">Créez votre compte développeur</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nom</label>
+            <input class="form-control" placeholder="Chattaoui"/>
+          </div>
+          <div class="form-group">
+            <label>Prénom</label>
+            <input class="form-control" placeholder="Rayan"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Adresse email</label>
+          <input class="form-control" type="email" placeholder="vous@exemple.com"/>
+        </div>
+        <div class="form-group">
+          <label>Mot de passe <span style="color:var(--muted);font-size:8px">(min. 8 caractères)</span></label>
+          <input class="form-control" type="password" placeholder="••••••••" value="monmotdepasse"/>
+          <div class="strength-bar"><div class="strength-fill"></div></div>
+          <div class="form-hint">Force : Bonne</div>
+        </div>
+        <div class="form-group">
+          <label>Date de naissance</label>
+          <input class="form-control" type="date" value="2000-01-01"/>
+        </div>
+        <div class="terms-row">
+          <input type="checkbox" id="terms" checked/>
+          <label for="terms">J'accepte les <a href="#">conditions d'utilisation</a> et la <a href="#">politique de confidentialité</a> de GameForge.</label>
+        </div>
+        <button class="btn-submit"><span class="ms" style="font-size:16px">person_add</span>Créer mon compte</button>
+      </div>
+      <div class="auth-footer">
+        <span>Déjà inscrit ?</span>
+        <a href="#">Se connecter</a>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;font-size:9px;color:var(--muted)">
+      Authentification sécurisée par JWT · Mots de passe hashés avec bcrypt (12 rounds)
+    </div>
+  </div>
+</div>
+</body>
+</html>
