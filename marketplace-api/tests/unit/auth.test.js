@@ -58,7 +58,7 @@ describe('Auth — Unit Tests', () => {
   });
 
   describe('Password validation rules', () => {
-    const validatePassword = (pwd) => pwd && pwd.length >= 8;
+    const validatePassword = (pwd) => !!(pwd && pwd.length >= 8);
 
     it('should accept password >= 8 chars', () => {
       expect(validatePassword('abcdefgh')).toBe(true);

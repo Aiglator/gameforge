@@ -8,9 +8,10 @@
 
     <!-- Nav links -->
     <div class="flex items-center space-x-6">
-      <RouterLink to="/" class="nav-link">Home</RouterLink>
-      <RouterLink to="/catalog" class="nav-link">Catalog</RouterLink>
+      <RouterLink to="/" class="nav-link">Accueil</RouterLink>
+      <RouterLink to="/catalog" class="nav-link">Catalogue</RouterLink>
       <RouterLink v-if="auth.isLoggedIn" to="/dashboard" class="nav-link">Dashboard</RouterLink>
+      <RouterLink v-if="auth.user?.role === 'admin'" to="/admin" class="nav-link text-red-400 border border-red-400/40 px-2 py-0.5">🛡 Admin</RouterLink>
     </div>
 
     <!-- Auth section -->
@@ -19,8 +20,9 @@
         <RouterLink to="/profile" class="text-[10px] text-on-surface-variant hover:text-on-surface transition-colors">
           {{ auth.user?.prenom }} {{ auth.user?.nom }}
         </RouterLink>
+        <span v-if="auth.user?.role === 'developer'" class="text-[8px] text-secondary border border-secondary/40 px-1.5 py-0.5 uppercase tracking-wider">Dev</span>
         <button @click="auth.logout()" class="text-[10px] text-slate-600 hover:text-on-surface transition-colors">
-          Sign out
+          Déconnexion
         </button>
       </template>
       <template v-else>

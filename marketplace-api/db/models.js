@@ -10,6 +10,7 @@ export const User = sequelize.define('User', {
   birthday:      { type: DataTypes.STRING },
   role:          { type: DataTypes.STRING,  defaultValue: 'user' },
   is_verified:   { type: DataTypes.INTEGER, defaultValue: 0 },
+  is_banned:     { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: 'users', timestamps: true, createdAt: 'created_at', updatedAt: false })
 
 export const Developer = sequelize.define('Developer', {
@@ -76,6 +77,17 @@ export async function syncAndSeed() {
   const count = await Game.count()
   if (count === 0) {
     const bcrypt = await import('bcrypt')
+
+    // Admin account
+    const adminHash = await bcrypt.default.hash('admin123456', 12)
+    await User.findOrCreate({
+      where: { email: 'admin@gameforge.dev' },
+      defaults: {
+        nom: 'Admin', prenom: 'GameForge', email: 'admin@gameforge.dev',
+        password_hash: adminHash, role: 'admin', is_verified: 1,
+      }
+    })
+
     const hash = await bcrypt.default.hash('demo123456', 12)
     const user = await User.create({
       nom: 'Demo', prenom: 'Developer', email: 'demo@gameforge.dev',

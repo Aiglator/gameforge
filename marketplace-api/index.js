@@ -12,6 +12,7 @@ import projectsRouter  from './routes/projects.js'
 import purchasesRouter from './routes/purchases.js'
 import developerRouter from './routes/developer.js'
 import mcpRouter       from './routes/mcp.js'
+import adminRouter     from './routes/admin.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 3003
@@ -39,6 +40,7 @@ app.use('/api/projects',  projectsRouter)
 app.use('/api/purchases', purchasesRouter)
 app.use('/api/developer', developerRouter)
 app.use('/api/mcp',       mcpRouter)
+app.use('/api/admin',     adminRouter)
 
 // 404 handler
 app.use((req, res) => res.status(404).json({ message: `Route ${req.method} ${req.path} not found` }))
