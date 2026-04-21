@@ -7,6 +7,8 @@ import type { Vec3, GizmoMode, ViewportMode, EngineStats, ComponentType } from '
 import { TerrainGenerator, type TerrainResult, type TerrainParams } from './TerrainGenerator'
 import { Skybox, type SkySettings } from './Skybox'
 import { PostProcessing, type PostProcessingOptions } from './PostProcessing'
+import { TilemapLoader } from './TilemapLoader'
+import type { SpriteComponentData, TilemapComponentData } from './types'
 
 type EngineEvent =
   | 'entityAdded'
@@ -223,7 +225,7 @@ export class Engine {
     return this._selectedId
   }
 
-  createPrimitive(type: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'light' | 'camera' | 'terrain', name?: string): Entity {
+  createPrimitive(type: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'light' | 'camera' | 'terrain' | 'sprite' | 'sprite-fixed' | 'tilemap', name?: string): Entity {
     const entity = new Entity(name || type)
 
     if (type === 'cube' || type === 'sphere' || type === 'cylinder') {
@@ -272,6 +274,25 @@ export class Engine {
         width: 80, depth: 80, height: 14, scale: 0.07,
         octaves: 5, seed: 0, theme: 'plains',
         treeCount: 40, ruinCount: 10,
+      }))
+    } else if (type === 'sprite') {
+      entity.addComponent(new Component('sprite', {
+        type: 'sprite', color: '#ffffff', width: 1, height: 1, billboard: true, opacity: 1,
+      }))
+    } else if (type === 'sprite-fixed') {
+      entity.addComponent(new Component('sprite', {
+        type: 'sprite', color: '#4edea3', width: 1, height: 1, billboard: false, opacity: 1,
+      }))
+    } else if (type === 'tilemap') {
+      entity.addComponent(new Component('tilemap', {
+        type: 'tilemap', tileWidth: 1, tileHeight: 1, sheetCols: 4, sheetRows: 4,
+        mapData: [
+          [1, 1, 1, 1, 1],
+          [1, 0, 0, 0, 1],
+          [1, 0, 1, 0, 1],
+          [1, 0, 0, 0, 1],
+          [1, 1, 1, 1, 1],
+        ],
       }))
     }
 
@@ -363,6 +384,14 @@ export class Engine {
     this._emit('modeChanged', mode)
   }
 
+  setCameraMode(mode: 'perspective' | 'orthographic'): void {
+    this.mode = mode === 'orthographic' ? '2d' : '3d'
+    const cam = mode === 'orthographic' ? this.orthoCamera : this.camera
+    this.orbitControls.object = cam
+    this.transformControls.camera = cam
+    this._emit('modeChanged', { mode })
+  }
+
   // ─── Raycasting ────────────────────────────────────────────────
 
   raycastFromMouse(ndcX: number, ndcY: number): Entity | null {
@@ -418,8 +447,8 @@ export class Engine {
     if (comp) {
       Object.assign(comp.data, data)
     }
-    // Rebuild 3D object if mesh changed
-    if (componentType === 'mesh' && entity.object3D) {
+    // Rebuild 3D object if visual component changed
+    if (['mesh', 'sprite', 'tilemap'].includes(componentType) && entity.object3D) {
       this.scene.remove(entity.object3D)
       entity.object3D = this._buildObject3D(entity)
       this._syncTransform(entity)
@@ -516,8 +545,72 @@ export class Engine {
     }
 
     if (spriteComp) {
-      const material = new THREE.SpriteMaterial({ color: '#ffffff' })
-      return new THREE.Sprite(material)
+      const data = spriteComp.data as SpriteComponentData
+      const billboard = data.billboard !== false
+
+      if (billboard) {
+        // THREE.Sprite — always faces the camera
+        const mat = new THREE.SpriteMaterial({
+          color: data.color || '#ffffff',
+          opacity: data.opacity ?? 1,
+          transparent: (data.opacity ?? 1) < 1,
+        })
+        if (data.textureUrl) {
+          const tex = new THREE.TextureLoader().load(data.textureUrl)
+          tex.colorSpace = THREE.SRGBColorSpace
+          if (data.sheetCols && data.sheetRows) {
+            tex.repeat.set(1 / data.sheetCols, 1 / data.sheetRows)
+            const col = (data.frameIndex || 0) % data.sheetCols
+            const row = Math.floor((data.frameIndex || 0) / data.sheetCols)
+            tex.offset.set(col / data.sheetCols, 1 - (row + 1) / data.sheetRows)
+          }
+          mat.map = tex
+        }
+        const sprite = new THREE.Sprite(mat)
+        sprite.scale.set(data.width || 1, data.height || 1, 1)
+        return sprite
+      } else {
+        // Fixed plane — good for 2D top-down or platformer
+        const geo = new THREE.PlaneGeometry(data.width || 1, data.height || 1)
+        const mat = new THREE.MeshBasicMaterial({
+          color: data.color || '#ffffff',
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: data.opacity ?? 1,
+        })
+        if (data.textureUrl) {
+          const tex = new THREE.TextureLoader().load(data.textureUrl)
+          tex.colorSpace = THREE.SRGBColorSpace
+          if (data.sheetCols && data.sheetRows) {
+            tex.repeat.set(1 / data.sheetCols, 1 / data.sheetRows)
+            const col = (data.frameIndex || 0) % data.sheetCols
+            const row = Math.floor((data.frameIndex || 0) / data.sheetCols)
+            tex.offset.set(col / data.sheetCols, 1 - (row + 1) / data.sheetRows)
+          }
+          mat.map = tex
+        }
+        return new THREE.Mesh(geo, mat)
+      }
+    }
+
+    // Tilemap entity
+    const tilemapComp = entity.getComponent('tilemap')
+    if (tilemapComp) {
+      const data = tilemapComp.data as TilemapComponentData
+      let group: THREE.Group
+      if (data.tiledJson) {
+        group = TilemapLoader.fromTiled(JSON.parse(data.tiledJson), data.textureUrl || '')
+      } else if (data.mapData) {
+        group = TilemapLoader.fromArray(data.mapData, data.textureUrl || '', {
+          tileWidth: data.tileWidth || 1,
+          tileHeight: data.tileHeight || 1,
+          sheetCols: data.sheetCols || 1,
+          sheetRows: data.sheetRows || 1,
+        })
+      } else {
+        group = new THREE.Group()
+      }
+      return group
     }
 
     // Camera entity or empty

@@ -18,6 +18,7 @@ export type ComponentType =
   | 'behavior'
   | 'trigger'
   | 'terrain'
+  | 'tilemap'
 
 export interface ComponentData {
   type: ComponentType
@@ -82,9 +83,27 @@ export interface CameraComponentData extends ComponentData {
 
 export interface SpriteComponentData extends ComponentData {
   type: 'sprite'
-  textureUrl: string
-  width: number
-  height: number
+  textureUrl?: string      // URL de la texture (blob: ou http:)
+  color: string            // couleur teinte (#ffffff par défaut)
+  width: number            // largeur world units (default 1)
+  height: number           // hauteur world units (default 1)
+  billboard: boolean       // true = always face camera (THREE.Sprite), false = plane fixe
+  // Spritesheet UV
+  sheetCols?: number       // nb colonnes dans le spritesheet
+  sheetRows?: number       // nb lignes
+  frameIndex?: number      // index de frame (0-based)
+  opacity?: number         // 0-1
+}
+
+export interface TilemapComponentData extends ComponentData {
+  type: 'tilemap'
+  textureUrl?: string      // URL du tileset PNG
+  mapData?: number[][]     // grille 2D d'indices de tuiles (0 = vide)
+  tileWidth: number        // largeur d'une tuile en world units
+  tileHeight: number       // hauteur d'une tuile en world units
+  sheetCols: number        // nb colonnes du tileset
+  sheetRows: number        // nb lignes du tileset
+  tiledJson?: string       // JSON string d'un export Tiled (optionnel)
 }
 
 export interface AnimatorComponentData extends ComponentData {

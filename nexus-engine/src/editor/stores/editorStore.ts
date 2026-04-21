@@ -4,7 +4,7 @@ import type { Engine } from '../../engine/Engine'
 import type { GizmoMode } from '../../engine/types'
 
 export type BottomTab = 'content' | 'console' | 'code' | 'nodes'
-export type LeftPanel = 'scene' | 'tools' | 'assets' | 'layers' | 'terrain' | 'publish'
+export type LeftPanel = 'scene' | 'tools' | 'assets' | 'layers' | 'terrain' | 'publish' | 'compositor'
 export type ProjectMode = '2d' | '2d3d' | '3d'
 
 export interface ConsoleMessage {

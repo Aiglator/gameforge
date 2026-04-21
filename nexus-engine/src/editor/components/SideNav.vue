@@ -55,12 +55,13 @@ import { useEditorStore, type LeftPanel } from '../stores/editorStore'
 const store = useEditorStore()
 
 const allNavItems: Array<{ id: LeftPanel; icon: string; label: string; modes?: string[] }> = [
-  { id: 'scene',   icon: 'account_tree', label: 'SCENE' },
-  { id: 'tools',   icon: 'tune',         label: 'TOOLS' },
-  { id: 'assets',  icon: 'folder_open',  label: 'ASSETS' },
-  { id: 'layers',  icon: 'layers',       label: 'LAYERS' },
+  { id: 'scene',      icon: 'account_tree', label: 'SCENE' },
+  { id: 'tools',      icon: 'tune',         label: 'TOOLS' },
+  { id: 'assets',     icon: 'folder_open',  label: 'ASSETS' },
+  { id: 'compositor', icon: 'stacks',       label: 'COMP' },
+  { id: 'layers',     icon: 'layers',       label: 'LAYERS' },
   // Terrain & World only in 3D / 2D-3D modes
-  { id: 'terrain', icon: 'terrain',      label: 'WORLD', modes: ['3d', '2d3d'] },
+  { id: 'terrain',    icon: 'terrain',      label: 'WORLD', modes: ['3d', '2d3d'] },
 ]
 
 // Filter items by active project mode

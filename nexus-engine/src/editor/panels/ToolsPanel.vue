@@ -1,5 +1,54 @@
 <template>
   <div class="flex flex-col h-full bg-surface-container-low overflow-y-auto no-scrollbar">
+    <!-- Section: 2D Sprites & Maps — only in 2D / 2D+3D modes -->
+    <div v-if="store.projectMode !== '3d'" class="px-3 pt-3 pb-1">
+      <div
+        class="text-[9px] font-bold uppercase tracking-widest mb-2"
+        :class="store.projectMode === '2d' ? 'text-secondary' : 'text-accent'"
+      >
+        2D — Sprites &amp; Maps
+      </div>
+      <div class="grid grid-cols-2 gap-1.5">
+        <!-- Sprite Billboard -->
+        <button
+          @click="spawnSprite('billboard')"
+          class="flex flex-col items-center justify-center py-3 bg-surface-high hover:bg-surface-highest transition-colors group"
+          title="Sprite Billboard"
+        >
+          <span class="material-symbols-outlined text-secondary group-hover:text-secondary/70 transition-colors" style="font-size:22px">smart_display</span>
+          <span class="text-[9px] text-slate-500 mt-1 group-hover:text-slate-300 transition-colors">Sprite</span>
+        </button>
+        <!-- Sprite Plane (fixed) -->
+        <button
+          @click="spawnSprite('plane')"
+          class="flex flex-col items-center justify-center py-3 bg-surface-high hover:bg-surface-highest transition-colors group"
+          title="Flat Sprite (Fixed Plane)"
+        >
+          <span class="material-symbols-outlined text-secondary group-hover:text-secondary/70 transition-colors" style="font-size:22px">crop_portrait</span>
+          <span class="text-[9px] text-slate-500 mt-1 group-hover:text-slate-300 transition-colors">Flat Sprite</span>
+        </button>
+        <!-- Tilemap -->
+        <button
+          @click="spawnTilemap()"
+          class="flex flex-col items-center justify-center py-3 bg-surface-high hover:bg-surface-highest transition-colors group"
+          title="Tilemap"
+        >
+          <span class="material-symbols-outlined text-secondary group-hover:text-secondary/70 transition-colors" style="font-size:22px">grid_on</span>
+          <span class="text-[9px] text-slate-500 mt-1 group-hover:text-slate-300 transition-colors">Tilemap</span>
+        </button>
+        <!-- Import PNG → Sprite -->
+        <button
+          @click="importSpriteTexture()"
+          class="flex flex-col items-center justify-center py-3 bg-surface-high hover:bg-surface-highest transition-colors group"
+          title="Import PNG as Sprite"
+        >
+          <span class="material-symbols-outlined text-secondary group-hover:text-secondary/70 transition-colors" style="font-size:22px">upload_file</span>
+          <span class="text-[9px] text-slate-500 mt-1 group-hover:text-slate-300 transition-colors">Import PNG</span>
+        </button>
+      </div>
+    </div>
+    <div v-if="store.projectMode !== '3d'" class="mx-3 border-t border-surface-highest my-2" />
+
     <!-- Section: Primitives -->
     <div class="px-3 pt-3 pb-1">
       <div class="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-2">Primitives</div>
@@ -166,6 +215,47 @@ import { useEditorStore } from '../stores/editorStore'
 import type { GizmoMode } from '../../engine/types'
 
 const store = useEditorStore()
+
+// ── 2D helpers ──────────────────────────────────────────────────
+
+function spawnSprite(mode: 'billboard' | 'plane') {
+  const eng = store.engine
+  if (!eng) return
+  const type = mode === 'billboard' ? 'sprite' : 'sprite-fixed'
+  const label = mode === 'billboard' ? 'Sprite' : 'Flat Sprite'
+  const e = eng.createPrimitive(type, label)
+  store.selectEntity(e.id)
+  store.bumpEntityVersion()
+  store.addConsoleMessage('info', `Spawned ${label}`)
+}
+
+function spawnTilemap() {
+  const eng = store.engine
+  if (!eng) return
+  const e = eng.createPrimitive('tilemap', 'Tilemap')
+  store.selectEntity(e.id)
+  store.bumpEntityVersion()
+  store.addConsoleMessage('info', 'Spawned Tilemap')
+}
+
+function importSpriteTexture() {
+  const eng = store.engine
+  if (!eng) return
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const blobUrl = URL.createObjectURL(file)
+    const e = eng.createPrimitive('sprite', file.name.replace(/\.[^.]+$/, ''))
+    eng.updateEntityComponent(e.id, 'sprite', { textureUrl: blobUrl })
+    store.selectEntity(e.id)
+    store.bumpEntityVersion()
+    store.addConsoleMessage('info', `Imported sprite: ${file.name}`)
+  }
+  input.click()
+}
 
 const PRIMITIVES = [
   { id: 'cube',     icon: 'deployed_code', label: 'Cube',     color: 'text-primary' },
