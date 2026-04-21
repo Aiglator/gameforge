@@ -3,13 +3,16 @@
     <!-- Logo -->
     <div class="mb-4 text-center">
       <div class="text-base font-black text-white">N</div>
-      <div class="text-[7px] text-slate-500 font-bold uppercase tracking-widest">v1.0</div>
+      <div class="text-[7px] font-bold uppercase tracking-widest"
+        :class="store.projectMode === '2d' ? 'text-secondary' : store.projectMode === '3d' ? 'text-primary' : 'text-accent'">
+        {{ store.projectMode ? store.projectMode.toUpperCase() : 'v2.0' }}
+      </div>
     </div>
 
     <!-- Nav items -->
     <div class="flex flex-col space-y-1 w-full">
       <button
-        v-for="item in navItems"
+        v-for="item in visibleNavItems"
         :key="item.id"
         @click="store.leftPanel = item.id"
         class="py-3 flex flex-col items-center group transition-all border-l-2"
@@ -46,15 +49,22 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useEditorStore, type LeftPanel } from '../stores/editorStore'
 
 const store = useEditorStore()
 
-const navItems: Array<{ id: LeftPanel; icon: string; label: string }> = [
+const allNavItems: Array<{ id: LeftPanel; icon: string; label: string; modes?: string[] }> = [
   { id: 'scene',   icon: 'account_tree', label: 'SCENE' },
   { id: 'tools',   icon: 'tune',         label: 'TOOLS' },
   { id: 'assets',  icon: 'folder_open',  label: 'ASSETS' },
   { id: 'layers',  icon: 'layers',       label: 'LAYERS' },
-  { id: 'terrain', icon: 'terrain',      label: 'WORLD' },
+  // Terrain & World only in 3D / 2D-3D modes
+  { id: 'terrain', icon: 'terrain',      label: 'WORLD', modes: ['3d', '2d3d'] },
 ]
+
+// Filter items by active project mode
+const visibleNavItems = computed(() =>
+  allNavItems.filter(item => !item.modes || !store.projectMode || item.modes.includes(store.projectMode))
+)
 </script>

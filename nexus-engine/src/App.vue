@@ -1,6 +1,9 @@
 <template>
   <div class="bg-surface text-on-surface h-screen overflow-hidden flex flex-col select-none dark">
 
+    <!-- Project Wizard (shown on first launch) -->
+    <ProjectWizard v-if="store.showWizard" />
+
     <!-- Top Bar -->
     <TopBar />
 
@@ -56,6 +59,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from './editor/stores/editorStore'
+import ProjectWizard from './editor/components/ProjectWizard.vue'
 import TopBar from './editor/components/TopBar.vue'
 import SideNav from './editor/components/SideNav.vue'
 import Viewport from './editor/panels/Viewport.vue'

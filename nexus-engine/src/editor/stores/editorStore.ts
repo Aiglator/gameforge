@@ -5,6 +5,7 @@ import type { GizmoMode } from '../../engine/types'
 
 export type BottomTab = 'content' | 'console' | 'code' | 'nodes'
 export type LeftPanel = 'scene' | 'tools' | 'assets' | 'layers' | 'terrain' | 'publish'
+export type ProjectMode = '2d' | '2d3d' | '3d'
 
 export interface ConsoleMessage {
   id: number
@@ -26,9 +27,49 @@ export interface AssetEntry {
 let _msgId = 0
 
 export const useEditorStore = defineStore('editor', () => {
+
+  // ── Project Mode (wizard) ────────────────────────────────────
+  // null = wizard not yet shown, value persisted in localStorage
+  const _storedMode = localStorage.getItem('nexus-project-mode') as ProjectMode | null
+  const projectMode = ref<ProjectMode | null>(_storedMode)
+  const showWizard = ref<boolean>(_storedMode === null)
+
+  function setProjectMode(mode: ProjectMode) {
+    projectMode.value = mode
+    showWizard.value = false
+    localStorage.setItem('nexus-project-mode', mode)
+    // Apply mode effects once engine is ready
+    _applyProjectMode(mode)
+  }
+
+  function resetProjectMode() {
+    projectMode.value = null
+    showWizard.value = true
+    localStorage.removeItem('nexus-project-mode')
+  }
+
+  function _applyProjectMode(mode: ProjectMode) {
+    const eng = engine.value
+    if (!eng) return
+    if (mode === '2d') {
+      // Orthographic camera, disable terrain & 3D-only tools
+      eng.setCameraMode?.('orthographic')
+    } else if (mode === '3d') {
+      eng.setCameraMode?.('perspective')
+      // Pre-enable skybox for full 3D experience
+    } else {
+      // 2D/3D: perspective camera, default settings
+      eng.setCameraMode?.('perspective')
+    }
+  }
+
   // ── Engine ──────────────────────────────────────────────────
   const engine = ref<Engine | null>(null)
-  function setEngine(eng: Engine) { engine.value = eng }
+  function setEngine(eng: Engine) {
+    engine.value = eng
+    // Apply stored mode when engine mounts
+    if (projectMode.value) _applyProjectMode(projectMode.value)
+  }
 
   // ── Selection ────────────────────────────────────────────────
   const selectedEntityId = ref<string | null>(null)
@@ -192,6 +233,8 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   return {
+    // project mode
+    projectMode, showWizard, setProjectMode, resetProjectMode,
     // engine
     engine, setEngine, clearEngine,
     // selection

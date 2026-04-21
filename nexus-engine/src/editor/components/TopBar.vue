@@ -59,8 +59,21 @@
       </button>
     </div>
 
-    <!-- Right: Search -->
+    <!-- Right: Mode badge + Search + WS -->
     <div class="flex items-center space-x-3">
+
+      <!-- Project mode badge -->
+      <button
+        v-if="store.projectMode"
+        @click="store.resetProjectMode()"
+        class="flex items-center space-x-1.5 px-2 py-1 border transition-colors group"
+        :class="modeBadgeClass"
+        title="Changer de mode de projet"
+      >
+        <span class="text-[8px] font-black uppercase tracking-widest">{{ modeLabel }}</span>
+        <span class="material-symbols-outlined text-[10px] opacity-60 group-hover:opacity-100">swap_horiz</span>
+      </button>
+
       <div class="bg-surface-highest px-3 py-1 flex items-center space-x-2">
         <span class="material-symbols-outlined text-slate-500">search</span>
         <input
@@ -82,20 +95,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
 
 const store = useEditorStore()
 const searchQuery = ref('')
 
+const modeLabel = computed(() => {
+  switch (store.projectMode) {
+    case '2d':   return '2D'
+    case '3d':   return '3D'
+    case '2d3d': return '2D / 3D'
+    default:     return ''
+  }
+})
+
+const modeBadgeClass = computed(() => {
+  switch (store.projectMode) {
+    case '2d':   return 'border-secondary/40 text-secondary hover:border-secondary hover:bg-secondary/10'
+    case '3d':   return 'border-primary/40 text-primary hover:border-primary hover:bg-primary/10'
+    case '2d3d': return 'border-accent/40 text-accent hover:border-accent hover:bg-accent/10'
+    default:     return 'border-surface-highest text-slate-500'
+  }
+})
+
 const MENUS = ['FILE', 'EDIT', 'VIEW', 'GAME', 'BUILD'] as const
 
 const menuItems: Record<string, Array<{ label: string; action: string; shortcut?: string }>> = {
   FILE: [
-    { label: 'New Scene',    action: 'new',    shortcut: 'Ctrl+N' },
-    { label: 'Save Scene',   action: 'save',   shortcut: 'Ctrl+S' },
-    { label: 'Load Scene',   action: 'load',   shortcut: 'Ctrl+O' },
-    { label: 'Export JSON',  action: 'export' },
+    { label: 'New Scene',       action: 'new',       shortcut: 'Ctrl+N' },
+    { label: 'Save Scene',      action: 'save',      shortcut: 'Ctrl+S' },
+    { label: 'Load Scene',      action: 'load',      shortcut: 'Ctrl+O' },
+    { label: 'Export JSON',     action: 'export' },
+    { label: 'Changer de mode', action: 'changeMode' },
   ],
   EDIT: [
     { label: 'Undo',      action: 'undo', shortcut: 'Ctrl+Z' },
@@ -158,6 +190,7 @@ function handleAction(action: string) {
       a.click(); URL.revokeObjectURL(url)
       break
     }
+    case 'changeMode': store.resetProjectMode(); break
     case 'play': handlePlay(); break
     case 'stop': handleStop(); break
     case 'duplicate':
