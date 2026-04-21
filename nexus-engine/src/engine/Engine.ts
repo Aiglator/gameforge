@@ -55,6 +55,14 @@ export class Engine {
 
   // Scripting
   private _compiledScripts: Map<string, { onStart?: () => void, onUpdate?: (dt: number) => void, onCollision?: (other: Entity) => void }> = new Map()
+
+  // Animation state
+  private _animState = new Map<string, {
+    clipName: string
+    frameIdx: number
+    frameElapsed: number  // secondes écoulées dans la frame courante
+    direction: 1 | -1    // pour pingPong
+  }>()
   private _keyDown: Set<string> = new Set()
   private _keyPressed: Set<string> = new Set()
 
@@ -765,6 +773,9 @@ export class Engine {
     if (this._running) return
     this.orbitControls.update()
 
+    // Animator preview in editor mode
+    this._updateAnimators(1 / 60)
+
     if (this.postProcessing) {
       this.postProcessing.render()
     } else {
@@ -814,6 +825,9 @@ export class Engine {
     // Scripting
     this._updateScripts(dt)
 
+    // Animations
+    this._updateAnimators(dt)
+
     // Physics
     this.physicsWorld.step(1 / 60, dt, 3)
     for (const [id, body] of this._physicsBodies) {
@@ -840,6 +854,82 @@ export class Engine {
     this._emit('statsUpdated', this.stats)
 
     this._frameId = requestAnimationFrame((t) => this._gameLoop(t))
+  }
+
+  // ─── Animator Runtime ──────────────────────────────────────────
+
+  private _updateAnimators(dt: number): void {
+    for (const [id, entity] of this._entities) {
+      const animComp = entity.getComponent('animator')
+      const spriteComp = entity.getComponent('sprite')
+      if (!animComp || !spriteComp) continue
+
+      const data = animComp.data as import('./types').AnimatorComponentData
+      const clip = data.clips?.find((c: import('./types').AnimClip) => c.name === data.currentClip)
+      if (!clip || clip.frames.length === 0) continue
+
+      // Initialiser ou réinitialiser si clip changé
+      let state = this._animState.get(id)
+      if (!state || state.clipName !== data.currentClip) {
+        state = { clipName: data.currentClip, frameIdx: 0, frameElapsed: 0, direction: 1 }
+        this._animState.set(id, state)
+      }
+
+      const speed = Math.max(0.01, data.speed ?? 1)
+      const fps = Math.max(1, clip.fps || 12)
+      const currentFrame = clip.frames[state.frameIdx]
+      const frameDuration = (currentFrame?.duration != null ? currentFrame.duration / 1000 : 1 / fps) / speed
+
+      state.frameElapsed += dt
+      if (state.frameElapsed >= frameDuration) {
+        state.frameElapsed -= frameDuration
+
+        // Avancer frame
+        state.frameIdx += state.direction
+        const len = clip.frames.length
+
+        if (state.frameIdx >= len) {
+          if (clip.pingPong) { state.direction = -1; state.frameIdx = Math.max(0, len - 2) }
+          else if (clip.loop) { state.frameIdx = 0 }
+          else { state.frameIdx = len - 1 }
+        } else if (state.frameIdx < 0) {
+          if (clip.pingPong) { state.direction = 1; state.frameIdx = Math.min(1, len - 1) }
+          else { state.frameIdx = 0 }
+        }
+
+        // Appliquer la frame au sprite
+        const frame = clip.frames[state.frameIdx]
+        if (frame == null) continue
+
+        const sData = spriteComp.data as import('./types').SpriteComponentData
+        const cols = sData.sheetCols || 1
+        const rows = sData.sheetRows || 1
+        const fi = frame.frameIndex
+        const col = fi % cols
+        const row = Math.floor(fi / cols)
+        const ox = col / cols
+        const oy = 1 - (row + 1) / rows
+
+        const obj = entity.object3D
+        if (!obj) continue
+
+        // THREE.Sprite (billboard)
+        const asSprite = obj as THREE.Sprite
+        if (asSprite.isSprite && asSprite.material?.map) {
+          asSprite.material.map.offset.set(ox, oy)
+          asSprite.material.map.needsUpdate = true
+        }
+        // THREE.Mesh (flat plane)
+        const asMesh = obj as THREE.Mesh
+        if (asMesh.isMesh) {
+          const mat = asMesh.material as THREE.MeshBasicMaterial
+          if (mat?.map) {
+            mat.map.offset.set(ox, oy)
+            mat.map.needsUpdate = true
+          }
+        }
+      }
+    }
   }
 
   // ─── Scripting ─────────────────────────────────────────────────

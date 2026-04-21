@@ -23,6 +23,7 @@
           <Transition name="slide-left">
             <SceneOutliner   v-if="store.leftPanel === 'scene'" />
             <ToolsPanel      v-else-if="store.leftPanel === 'tools'" />
+            <AnimatorPanel   v-else-if="store.leftPanel === 'animator'" />
             <ContentBrowser  v-else-if="store.leftPanel === 'assets'" key="assets-side" :sideMode="true" />
             <CompositorPanel v-else-if="store.leftPanel === 'compositor'" />
             <TerrainEditor   v-else-if="store.leftPanel === 'terrain'" />
@@ -71,6 +72,7 @@ import ContentBrowser from './editor/panels/ContentBrowser.vue'
 import TerrainEditor from './editor/panels/TerrainEditor.vue'
 import PublishPanel from './editor/panels/PublishPanel.vue'
 import CompositorPanel from './editor/panels/CompositorPanel.vue'
+import AnimatorPanel from './editor/panels/AnimatorPanel.vue'
 import BottomPanel from './editor/panels/BottomPanel.vue'
 import StatusBar from './editor/components/StatusBar.vue'
 

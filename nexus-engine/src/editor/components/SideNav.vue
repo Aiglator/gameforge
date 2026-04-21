@@ -57,6 +57,7 @@ const store = useEditorStore()
 const allNavItems: Array<{ id: LeftPanel; icon: string; label: string; modes?: string[] }> = [
   { id: 'scene',      icon: 'account_tree', label: 'SCENE' },
   { id: 'tools',      icon: 'tune',         label: 'TOOLS' },
+  { id: 'animator',   icon: 'animation',    label: 'ANIM' },
   { id: 'assets',     icon: 'folder_open',  label: 'ASSETS' },
   { id: 'compositor', icon: 'stacks',       label: 'COMP' },
   { id: 'layers',     icon: 'layers',       label: 'LAYERS' },

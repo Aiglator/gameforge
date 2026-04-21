@@ -294,6 +294,48 @@
             </button>
           </div>
 
+          <!-- Animator component dedicated rendering -->
+          <div v-else-if="compType === 'animator'" class="px-4 pb-3 space-y-2">
+            <!-- Current clip selector -->
+            <div>
+              <div class="text-[9px] text-slate-500 uppercase mb-1">Current Clip</div>
+              <select
+                :value="String(getComp('animator')?.data?.currentClip ?? '')"
+                @change="e => updateComp('animator', 'currentClip', (e.target as HTMLSelectElement).value)"
+                class="bg-surface-highest text-[10px] text-on-surface px-2 py-1.5 w-full border-none focus:outline-none"
+              >
+                <option value="">— None —</option>
+                <option
+                  v-for="clip in ((getComp('animator')?.data?.clips as any[]) ?? [])"
+                  :key="clip.id"
+                  :value="clip.name"
+                >{{ clip.name }}</option>
+              </select>
+            </div>
+            <!-- Speed -->
+            <div class="flex items-center space-x-2">
+              <span class="text-[9px] text-slate-500 uppercase w-12">Speed</span>
+              <input type="number" min="0.01" max="10" step="0.1"
+                :value="Number(getComp('animator')?.data?.speed ?? 1)"
+                @change="e => updateComp('animator', 'speed', parseFloat((e.target as HTMLInputElement).value) || 1)"
+                class="bg-surface-highest text-[9px] font-mono text-on-surface px-2 py-1 w-16 border-none focus:outline-none" />
+              <span class="text-[8px] text-slate-600">× global</span>
+            </div>
+            <!-- Clip count info -->
+            <div class="text-[9px] text-slate-600">
+              {{ ((getComp('animator')?.data?.clips as any[]) ?? []).length }} clips ·
+              {{ ((getComp('animator')?.data?.transitions as any[]) ?? []).length }} transitions
+            </div>
+            <!-- Open Animator Panel shortcut -->
+            <button
+              @click="store.leftPanel = 'animator'"
+              class="w-full bg-purple-500/10 text-purple-300 text-[9px] font-bold py-1.5 uppercase tracking-widest hover:bg-purple-500/20 transition-all flex items-center justify-center space-x-1 border border-purple-500/20"
+            >
+              <span class="material-symbols-outlined text-sm">animation</span>
+              <span>Ouvrir Animator Panel</span>
+            </button>
+          </div>
+
           <!-- Generic field renderer -->
           <div v-else class="px-4 pb-3 space-y-1.5">
             <template v-for="[key, val] in compFields(compType)" :key="key">
@@ -398,6 +440,7 @@ const compColors: Partial<Record<ComponentType, string>> = {
   mesh: 'text-primary', physics: 'text-slate-300', script: 'text-secondary',
   light: 'text-yellow-400', camera: 'text-blue-400', sprite: 'text-emerald-400',
   tilemap: 'text-cyan-400', behavior: 'text-orange-400', trigger: 'text-red-400', terrain: 'text-green-400',
+  animator: 'text-purple-400',
 }
 
 const selectFields: Record<string, string[]> = {
@@ -470,7 +513,7 @@ const compDefaults: Partial<Record<ComponentType, Record<string, unknown>>> = {
   camera:   { mode: 'follow', fov: 60, active: false },
   sprite:   { textureUrl: '', color: '#ffffff', width: 1, height: 1, billboard: true, opacity: 1 },
   tilemap:  { tileWidth: 1, tileHeight: 1, sheetCols: 4, sheetRows: 4, textureUrl: '', tiledJson: '' },
-  animator: { clipName: '', loop: true, speed: 1 },
+  animator: { clips: [], currentClip: '', transitions: [], parameters: {}, speed: 1 },
   behavior: { behaviorType: 'idle', speed: 2, range: 10 },
   trigger:  { halfExtents: {x:1,y:1,z:1}, onEnter: '', onExit: '' },
   terrain:  { width: 80, depth: 80, height: 14, scale: 0.07, octaves: 5, seed: 0, theme: 'plains', treeCount: 40, ruinCount: 10 },

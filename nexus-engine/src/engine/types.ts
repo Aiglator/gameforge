@@ -106,11 +106,36 @@ export interface TilemapComponentData extends ComponentData {
   tiledJson?: string       // JSON string d'un export Tiled (optionnel)
 }
 
+export interface SpriteFrame {
+  frameIndex: number  // index absolu dans le spritesheet (0-based, row-major)
+  duration?: number   // durée ms override (null = utilise fps du clip)
+}
+
+export interface AnimClip {
+  id: string          // uuid
+  name: string        // 'idle' | 'run' | 'jump' | etc.
+  frames: SpriteFrame[]
+  fps: number         // images/sec (défaut 12)
+  loop: boolean
+  pingPong: boolean   // aller-retour à la fin avant de boucler
+}
+
+export interface AnimTransition {
+  id: string
+  from: string        // nom du clip source, ou '*' = n'importe lequel
+  to: string          // nom du clip cible
+  condition: string   // expression textuelle: "speed > 0", "grounded", "!jumping"
+  hasExitTime: boolean
+  exitTime: number    // 0-1, position normalisée dans le clip avant de transiter
+}
+
 export interface AnimatorComponentData extends ComponentData {
   type: 'animator'
-  clipName: string
-  loop: boolean
-  speed: number
+  clips: AnimClip[]
+  currentClip: string         // nom du clip actif
+  transitions: AnimTransition[]
+  parameters: Record<string, number | boolean>  // variables d'animation
+  speed: number               // multiplicateur global
 }
 
 export interface BehaviorComponentData extends ComponentData {
