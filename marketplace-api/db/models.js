@@ -73,9 +73,8 @@ export async function syncAndSeed() {
   await sequelize.sync({ alter: true })
   await sequelize.query('PRAGMA foreign_keys = ON')
 
-  // Seed demo data if no games
-  const count = await Game.count()
-  if (count === 0) {
+  // Seed demo data — uses findOrCreate so restarts never destroy data or API keys
+  {
     const bcrypt = await import('bcrypt')
 
     // Admin account
@@ -89,22 +88,35 @@ export async function syncAndSeed() {
     })
 
     const hash = await bcrypt.default.hash('demo123456', 12)
-    const user = await User.create({
-      nom: 'Demo', prenom: 'Developer', email: 'demo@gameforge.dev',
-      password_hash: hash, role: 'developer', is_verified: 1,
+    const [user] = await User.findOrCreate({
+      where: { email: 'demo@gameforge.dev' },
+      defaults: { nom: 'Demo', prenom: 'Developer', email: 'demo@gameforge.dev', password_hash: hash, role: 'developer', is_verified: 1 }
     })
-    const dev = await Developer.create({ user_id: user.id, api_key: 'demo_api_key_123', plan: 'pro' })
+    // Preserve existing API key — never overwrite if already set
+    const [dev] = await Developer.findOrCreate({
+      where: { user_id: user.id },
+      defaults: { user_id: user.id, api_key: 'demo_api_key_123', plan: 'pro' }
+    })
     const games = [
-      { name: 'Nexus Runner',     slug: 'nexus-runner',     description: 'A 2D side-scrolling platformer. Jump over enemies, collect coins, survive endless levels!', category: 'Platformer', price: 0,    player_count: 0,    project_path: '/static/nexus-runner/index.html' },
-      { name: 'Space Explorer',   slug: 'space-explorer',   description: 'Explore procedurally generated galaxies.', category: 'Adventure',  price: 0,    player_count: 842 },
-      { name: 'Nexus Dungeon',    slug: 'nexus-dungeon',    description: 'Dark dungeon crawler with physics combat.', category: 'Action',     price: 4.99, player_count: 317 },
-      { name: 'Terrain Quest',    slug: 'terrain-quest',    description: 'Explore vast procedural terrains.',          category: 'Sandbox',    price: 0,    player_count: 1204 },
-      { name: 'Puzzle Cubes',     slug: 'puzzle-cubes',     description: 'Minimalist physics puzzle game.',           category: 'Puzzle',     price: 1.99, player_count: 593 },
-      { name: 'Void Runner',      slug: 'void-runner',      description: 'Fast-paced neon platformer.',               category: 'Platformer', price: 0,    player_count: 726 },
-      { name: 'Fortress Builder', slug: 'fortress-builder', description: 'Build and defend your fortress.',           category: 'Strategy',   price: 9.99, player_count: 158 },
+      // ── Jeux avec fichiers réels ────────────────────────────────────────────────────────────────────
+      { name: 'Nexus Runner',          slug: 'nexus-runner',          description: 'Platformer 2D infini généré procéduralement. Double saut, ennemis, pièces. Construit avec Canvas 2D API.',                                                                          category: 'Platformer', price: 0,    player_count: 1247, project_path: '/static/nexus-runner/index.html',          engine_version: '2.0' },
+      { name: 'Slime Awakening',       slug: 'slime-awakening',       description: 'Pixel art platformer. Tu incarnes KORX, un scientifique muté en slime. Absorbe tes ennemis, mute, survie. 3 zones + boss. Rendu pixel art 320×180 upscalé 4×.',                   category: 'Platformer', price: 0,    player_count: 489,  project_path: '/static/slime-awakening/index.html',          engine_version: '2.0' },
+      { name: 'Stray Light Nightmare', slug: 'stray-light-nightmare', description: 'Horreur atmosphérique 3D. Labyrinthe procédural avec Three.js r168. Post-processing ultra-complexe : bloom, aberration chromatique, SSAO, grain cinématique, colorimétrie LUT. Entités lumineuses, système de peur dynamique.',  category: 'Horror',     price: 0,    player_count: 312,  project_path: '/static/stray-light-nightmare/index.html',    engine_version: '2.0' },
+      { name: 'Neon Assault',          slug: 'neon-assault',          description: 'Bullet hell synthwave. Vaisseaux, boss, missiles guidés, bouclier, combo system. Difficulté progressive par vagues. Son procédural Web Audio API.',                                 category: 'Action',     price: 0,    player_count: 2104, project_path: '/static/neon-assault/index.html',             engine_version: '2.0' },
+      { name: 'Void Blocks',           slug: 'void-blocks',           description: 'Tetris edition Nexus. Ghost piece, hard drop, niveaux progressifs, effets de flash sur les lignes complètes. Rendu neon sur fond sombre.',                                          category: 'Puzzle',     price: 0,    player_count: 3401, project_path: '/static/void-blocks/index.html',               engine_version: '2.0' },
+      // ── Jeux placeholder (à développer) ───────────────────────────────────────────────────────────
+      { name: 'Space Explorer',        slug: 'space-explorer',        description: 'Explorez des galaxies générées procéduralement. Collecte de ressources, factions, crafting.',                                                                                       category: 'Adventure',  price: 0,    player_count: 842 },
+      { name: 'Nexus Dungeon',         slug: 'nexus-dungeon',         description: 'Dungeon crawler sombre avec combat physique Cannon-es. Armes procédurales, boss légendaires.',                                                                                       category: 'Action',     price: 4.99, player_count: 317 },
+      { name: 'Terrain Quest',         slug: 'terrain-quest',         description: 'Explorez des terrains procéduraux massifs. Biomes variés, ruines, faune hostile.',                                                                                                  category: 'Sandbox',    price: 0,    player_count: 1204 },
+      { name: 'Void Runner',      slug: 'void-runner',      description: 'Platformer neon ultra-rapide. Généré procéduralement, obstacles impossibles, musique synchronisée.',       category: 'Platformer', price: 0,    player_count: 726 },
+      { name: 'Fortress Builder', slug: 'fortress-builder', description: 'Construis et défends ta forteresse contre des vagues infinies. Économie, tours, unités.',                               category: 'Strategy',   price: 9.99, player_count: 158 },
+      { name: 'Puzzle Cubes',     slug: 'puzzle-cubes',     description: 'Puzzle physique minimaliste. Empile les cubes, active les interrupteurs, gravité variable.',                            category: 'Puzzle',     price: 1.99, player_count: 593 },
     ]
     for (const g of games) {
-      await Game.create({ ...g, developer_id: dev.id, status: 'published' })
+      await Game.findOrCreate({
+        where: { slug: g.slug },
+        defaults: { ...g, developer_id: dev.id, status: 'published' }
+      })
     }
   }
 }

@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SLIME AWAKENING</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0e1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #game-container {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+  }
+  canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1280px;
+    height: 720px;
+  }
+  #c {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    z-index: 1;
+  }
+  #hud {
+    z-index: 2;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="c" width="320" height="180"></canvas>
+  <canvas id="hud" width="1280" height="720"></canvas>
+</div>
+<script>
+(function() {
+'use strict';
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const W = 320, H = 180;
+const SCALE = 4;
+const FPS = 60;
+const GRAVITY = 0.25;
+const MAX_FALL = 6;
+
+const PAL = {
+  bg:        '#0a0e1a',
+  bgAlt:     '#0d1220',
+  green:     '#4ade80',
+  greenDark: '#16a34a',
+  yellow:    '#facc15',
+  pink:      '#f472b6',
+  cyan:      '#22d3ee',
+  red:       '#991b1b',
+  redBright: '#ef4444',
+  white:     '#e2e8f0',
+  gray:      '#475569',
+  grayDark:  '#1e293b',
+  grayMid:   '#334155',
+  purple:    '#7c3aed',
+  orange:    '#f97316',
+};
+
+// ─── BITMAP FONT ─────────────────────────────────────────────────────────────
+const FONT_DATA = {
+  'A':[[0,1,1,0],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1]],
+  'B':[[1,1,1,0],[1,0,0,1],[1,1,1,0],[1,0,0,1],[1,1,1,0]],
+  'C':[[0,1,1,1],[1,0,0,0],[1,0,0,0],[1,0,0,0],[0,1,1,1]],
+  'D':[[1,1,1,0],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,0]],
+  'E':[[1,1,1,1],[1,0,0,0],[1,1,1,0],[1,0,0,0],[1,1,1,1]],
+  'F':[[1,1,1,1],[1,0,0,0],[1,1,1,0],[1,0,0,0],[1,0,0,0]],
+  'G':[[0,1,1,1],[1,0,0,0],[1,0,1,1],[1,0,0,1],[0,1,1,1]],
+  'H':[[1,0,0,1],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1]],
+  'I':[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[1,1,1]],
+  'J':[[0,0,1],[0,0,1],[0,0,1],[1,0,1],[0,1,1]],
+  'K':[[1,0,0,1],[1,0,1,0],[1,1,0,0],[1,0,1,0],[1,0,0,1]],
+  'L':[[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]],
+  'M':[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+  'N':[[1,0,0,1],[1,1,0,1],[1,0,1,1],[1,0,0,1],[1,0,0,1]],
+  'O':[[0,1,1,0],[1,0,0,1],[1,0,0,1],[1,0,0,1],[0,1,1,0]],
+  'P':[[1,1,1,0],[1,0,0,1],[1,1,1,0],[1,0,0,0],[1,0,0,0]],
+  'Q':[[0,1,1,0],[1,0,0,1],[1,0,0,1],[1,0,1,1],[0,1,1,1]],
+  'R':[[1,1,1,0],[1,0,0,1],[1,1,1,0],[1,0,1,0],[1,0,0,1]],
+  'S':[[0,1,1,1],[1,0,0,0],[0,1,1,0],[0,0,0,1],[1,1,1,0]],
+  'T':[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+  'U':[[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[0,1,1,0]],
+  'V':[[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],
+  'W':[[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,1,0,1,1],[1,0,0,0,1]],
+  'X':[[1,0,0,1],[0,1,1,0],[0,1,1,0],[1,0,0,1],[1,0,0,1]],
+  'Y':[[1,0,0,1],[1,0,0,1],[0,1,1,0],[0,1,0,0],[0,1,0,0]],
+  'Z':[[1,1,1,1],[0,0,1,0],[0,1,0,0],[1,0,0,0],[1,1,1,1]],
+  '0':[[0,1,1,0],[1,0,0,1],[1,0,1,1],[1,1,0,1],[0,1,1,0]],
+  '1':[[0,1,0],[1,1,0],[0,1,0],[0,1,0],[1,1,1]],
+  '2':[[1,1,1,0],[0,0,0,1],[0,1,1,0],[1,0,0,0],[1,1,1,1]],
+  '3':[[1,1,1,0],[0,0,0,1],[0,1,1,0],[0,0,0,1],[1,1,1,0]],
+  '4':[[1,0,0,1],[1,0,0,1],[1,1,1,1],[0,0,0,1],[0,0,0,1]],
+  '5':[[1,1,1,1],[1,0,0,0],[1,1,1,0],[0,0,0,1],[1,1,1,0]],
+  '6':[[0,1,1,0],[1,0,0,0],[1,1,1,0],[1,0,0,1],[0,1,1,0]],
+  '7':[[1,1,1,1],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,0,0]],
+  '8':[[0,1,1,0],[1,0,0,1],[0,1,1,0],[1,0,0,1],[0,1,1,0]],
+  '9':[[0,1,1,0],[1,0,0,1],[0,1,1,1],[0,0,0,1],[0,1,1,0]],
+  ' ':[[0,0],[0,0],[0,0],[0,0],[0,0]],
+  '!':[[1],[1],[1],[0],[1]],
+  '?':[[1,1,1],[0,0,1],[0,1,1],[0,0,0],[0,1,0]],
+  '.':[[0],[0],[0],[0],[1]],
+  ',':[[0],[0],[0],[0,1],[1,0]],
+  ':':[[0],[1],[0],[1],[0]],
+  '-':[[0,0,0],[0,0,0],[1,1,1],[0,0,0],[0,0,0]],
+  '\'':[[1],[1],[0],[0],[0]],
+  '/':[[0,0,1],[0,0,1],[0,1,0],[1,0,0],[1,0,0]],
+  '[':[[1,1],[1,0],[1,0],[1,0],[1,1]],
+  ']':[[1,1],[0,1],[0,1],[0,1],[1,1]],
+  '(':[[0,1],[1,0],[1,0],[1,0],[0,1]],
+  ')':[[1,0],[0,1],[0,1],[0,1],[1,0]],
+};
+
+function drawPixelText(ctx, text, x, y, color, scale=1) {
+  ctx.fillStyle = color;
+  let cx = x;
+  for (let ch of text.toUpperCase()) {
+    const glyph = FONT_DATA[ch] || FONT_DATA[' '];
+    for (let row = 0; row < glyph.length; row++) {
+      for (let col = 0; col < glyph[row].length; col++) {
+        if (glyph[row][col]) {
+          ctx.fillRect(cx + col*scale, y + row*scale, scale, scale);
+        }
+      }
+    }
+    cx += (glyph[0].length + 1) * scale;
+  }
+  return cx - x;
+}
+
+function measureText(text, scale=1) {
+  let w = 0;
+  for (let ch of text.toUpperCase()) {
+    const glyph = FONT_DATA[ch] || FONT_DATA[' '];
+    w += (glyph[0].length + 1) * scale;
+  }
+  return w;
+}
+
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+  try {
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    switch(type) {
+      case 'jump':
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(600, now+0.08);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.1);
+        osc.start(now); osc.stop(now+0.1);
+        break;
+      case 'land':
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.linearRampToValueAtTime(60, now+0.05);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.07);
+        osc.start(now); osc.stop(now+0.08);
+        break;
+      case 'absorb': {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now+0.4);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.45);
+        osc.start(now); osc.stop(now+0.45);
+        break;
+      }
+      case 'damage': {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.linearRampToValueAtTime(40, now+0.2);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.2);
+        osc.start(now); osc.stop(now+0.22);
+        break;
+      }
+      case 'death': {
+        [440,330,220,110].forEach((f,i) => {
+          const o2 = audioCtx.createOscillator();
+          const g2 = audioCtx.createGain();
+          o2.connect(g2); g2.connect(audioCtx.destination);
+          o2.type = 'square';
+          o2.frequency.setValueAtTime(f, now + i*0.12);
+          g2.gain.setValueAtTime(0.1, now+i*0.12);
+          g2.gain.linearRampToValueAtTime(0, now+i*0.12+0.1);
+          o2.start(now+i*0.12); o2.stop(now+i*0.12+0.12);
+        });
+        break;
+      }
+      case 'dash': {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.linearRampToValueAtTime(200, now+0.06);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.07);
+        osc.start(now); osc.stop(now+0.08);
+        break;
+      }
+      case 'coin': {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523, now);
+        osc.frequency.setValueAtTime(659, now+0.06);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.15);
+        osc.start(now); osc.stop(now+0.16);
+        break;
+      }
+      case 'boss': {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(60, now);
+        osc.frequency.linearRampToValueAtTime(40, now+0.3);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.linearRampToValueAtTime(0, now+0.32);
+        osc.start(now); osc.stop(now+0.33);
+        break;
+      }
+    }
+  } catch(e) {}
+}
+
+// ─── PARTICLE ────────────────────────────────────────────────────────────────
+class Particle {
+  constructor(x, y, vx, vy, color, life=30) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.color = color;
+    this.life = life;
+    this.maxLife = life;
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.05;
+    this.life--;
+  }
+  draw(ctx) {
+    const alpha = this.life / this.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = this.color;
+    ctx.fillRect(Math.round(this.x)-1, Math.round(this.y)-1, 2, 2);
+    ctx.globalAlpha = 1;
+  }
+  get dead() { return this.life <= 0; }
+}
+
+function spawnBurst(particles, x, y, color, count=8) {
+  for (let i = 0; i < count; i++) {
+    const ang = (i/count) * Math.PI * 2;
+    const spd = 0.5 + Math.random() * 1.5;
+    particles.push(new Particle(x, y,
+      Math.cos(ang)*spd, Math.sin(ang)*spd - 1,
+      color, 20 + Math.random()*20));
+  }
+}
+
+// ─── PLATFORM ────────────────────────────────────────────────────────────────
+class Platform {
+  constructor(x, y, w, h, type='normal', moveDist=0, moveSpeed=0) {
+    this.x = x; this.y = y; this.w = w; this.h = h;
+    this.type = type; // 'normal','toxic','moving'
+    this.ox = x; this.oy = y;
+    this.moveDist = moveDist;
+    this.moveSpeed = moveSpeed;
+    this.moveDir = 1;
+    this.moveT = 0;
+  }
+  update() {
+    if (this.type === 'moving') {
+      this.moveT += this.moveSpeed;
+      this.x = this.ox + Math.sin(this.moveT) * this.moveDist;
+    }
+  }
+  draw(ctx) {
+    if (this.type === 'toxic') {
+      // toxic pool
+      ctx.fillStyle = '#14532d';
+      ctx.fillRect(this.x, this.y, this.w, this.h);
+      // bubbles
+      ctx.fillStyle = PAL.green;
+      for (let i = 0; i < this.w; i += 8) {
+        const bh = Math.sin(Date.now()*0.003 + i) * 2;
+        ctx.fillRect(this.x+i+2, this.y+1+bh, 2, 2);
+      }
+    } else {
+      // draw tiled platform
+      const topColor = this.type === 'moving' ? PAL.cyan : '#3b5270';
+      const bodyColor = this.type === 'moving' ? '#1a4a5a' : '#1e2d40';
+      ctx.fillStyle = bodyColor;
+      ctx.fillRect(this.x, this.y, this.w, this.h);
+      ctx.fillStyle = topColor;
+      ctx.fillRect(this.x, this.y, this.w, 2);
+      // tile pattern
+      ctx.fillStyle = '#2a3f55';
+      for (let tx = this.x; tx < this.x+this.w; tx += 8) {
+        ctx.fillRect(tx, this.y+2, 1, this.h-2);
+      }
+    }
+  }
+  get rect() { return {x:this.x, y:this.y, w:this.w, h:this.h}; }
+}
+
+// ─── TEXTBOX ─────────────────────────────────────────────────────────────────
+class TextBox {
+  constructor(x, y, text, duration=300) {
+    this.x = x; this.y = y;
+    this.text = text;
+    this.duration = duration;
+    this.timer = duration;
+    this.triggered = false;
+  }
+  draw(ctx) {
+    if (!this.triggered || this.timer <= 0) return;
+    const alpha = Math.min(1, this.timer / 30);
+    ctx.globalAlpha = alpha * 0.92;
+    const lines = this.text.split('\n');
+    const lh = 9;
+    const pad = 4;
+    const w = Math.max(...lines.map(l => measureText(l, 1))) + pad*2;
+    const h = lines.length * lh + pad*2;
+    ctx.fillStyle = '#0a1628';
+    ctx.fillRect(this.x, this.y, w, h);
+    ctx.fillStyle = PAL.cyan;
+    ctx.fillRect(this.x, this.y, w, 1);
+    ctx.fillRect(this.x, this.y+h-1, w, 1);
+    ctx.fillRect(this.x, this.y, 1, h);
+    ctx.fillRect(this.x+w-1, this.y, 1, h);
+    lines.forEach((line, i) => {
+      drawPixelText(ctx, line, this.x+pad, this.y+pad+i*lh, PAL.white, 1);
+    });
+    ctx.globalAlpha = 1;
+  }
+  update() {
+    if (this.triggered && this.timer > 0) this.timer--;
+  }
+}
+
+// ─── ENEMY ───────────────────────────────────────────────────────────────────
+class Enemy {
+  constructor(x, y, type, patrolLeft, patrolRight) {
+    this.x = x; this.y = y;
+    this.type = type; // 'gel_drone','crawler','guardian','alpha_slime'
+    this.patrolLeft = patrolLeft;
+    this.patrolRight = patrolRight;
+    this.vx = (type === 'crawler') ? -0.4 : -0.6;
+    this.vy = 0;
+    this.onGround = false;
+    this.stunned = false;
+    this.stunTimer = 0;
+    this.absorbed = false;
+    this.hp = type === 'guardian' ? 6 : type === 'alpha_slime' ? 5 : 2;
+    this.maxHp = this.hp;
+    this.dir = -1;
+    this.animT = 0;
+    this.chasing = false;
+    // Boss stomp
+    this.stompTimer = 0;
+    this.stompPhase = 0; // 0=idle,1=windup,2=stomp
+    this.alertT = 0;
+  }
+
+  get w() {
+    if (this.type==='guardian') return 20;
+    if (this.type==='alpha_slime') return 16;
+    return 10;
+  }
+  get h() {
+    if (this.type==='guardian') return 24;
+    if (this.type==='alpha_slime') return 14;
+    return 10;
+  }
+
+  update(player, platforms) {
+    if (this.absorbed) return;
+    this.animT++;
+
+    if (this.stunned) {
+      this.stunTimer--;
+      if (this.stunTimer <= 0) this.stunned = false;
+      this.vy += GRAVITY;
+      this.vy = Math.min(this.vy, MAX_FALL);
+      this.y += this.vy;
+      this._resolveGround(platforms);
+      return;
+    }
+
+    // AI
+    const distX = player.x - this.x;
+    const distY = player.y - this.y;
+    this.chasing = Math.abs(distX) < 100 && Math.abs(distY) < 20;
+
+    if (this.type === 'guardian' || this.type === 'alpha_slime') {
+      this._bossAI(player, platforms);
+    } else {
+      if (this.chasing) {
+        this.vx = Math.sign(distX) * 0.8;
+        this.dir = Math.sign(distX);
+      } else {
+        // patrol
+        if (this.x <= this.patrolLeft) { this.vx = Math.abs(this.vx); this.dir = 1; }
+        if (this.x >= this.patrolRight) { this.vx = -Math.abs(this.vx); this.dir = -1; }
+      }
+    }
+
+    this.x += this.vx;
+    this.vy += GRAVITY;
+    this.vy = Math.min(this.vy, MAX_FALL);
+    this.y += this.vy;
+    this._resolveGround(platforms);
+  }
+
+  _bossAI(player, platforms) {
+    const dist = player.x - this.x;
+    this.dir = Math.sign(dist);
+
+    if (this.type === 'guardian') {
+      this.stompTimer--;
+      if (this.stompTimer <= 0) {
+        this.stompPhase++;
+        if (this.stompPhase === 1) { // windup
+          this.vx = 0;
+          this.stompTimer = 40;
+          this.alertT = 40;
+        } else if (this.stompPhase === 2) { // stomp jump
+          this.vy = -4;
+          this.vx = Math.sign(dist) * 2;
+          this.stompTimer = 80;
+          playSound('boss');
+        } else {
+          this.stompPhase = 0;
+          this.stompTimer = 90 + Math.random()*60;
+          this.vx = Math.sign(dist) * 0.7;
+        }
+      }
+      if (this.stompPhase === 0) {
+        this.vx = Math.sign(dist) * 0.7;
+      }
+    } else {
+      // alpha_slime: charge
+      if (this.stompTimer <= 0) {
+        this.vx = Math.sign(dist) * 2.5;
+        this.stompTimer = 40;
+      }
+      this.stompTimer--;
+    }
+
+    // bounds
+    if (this.x <= this.patrolLeft) this.vx = Math.abs(this.vx);
+    if (this.x >= this.patrolRight) this.vx = -Math.abs(this.vx);
+  }
+
+  _resolveGround(platforms) {
+    this.onGround = false;
+    for (const p of platforms) {
+      if (p.type === 'toxic') continue;
+      if (this.x+this.w > p.x && this.x < p.x+p.w &&
+          this.y+this.h > p.y && this.y+this.h <= p.y+p.h+this.vy+2 &&
+          this.vy >= 0) {
+        this.y = p.y - this.h;
+        this.vy = 0;
+        this.onGround = true;
+      }
+    }
+  }
+
+  stomp() {
+    this.stunned = true;
+    this.stunTimer = 120;
+    this.vy = -2;
+  }
+
+  draw(ctx) {
+    if (this.absorbed) return;
+    const t = this.animT;
+    const sx = Math.round(this.x);
+    const sy = Math.round(this.y);
+
+    if (this.stunned) {
+      // draw stunned stars
+      ctx.fillStyle = PAL.yellow;
+      for (let i = 0; i < 3; i++) {
+        const ang = t*0.1 + i * (Math.PI*2/3);
+        ctx.fillRect(sx + this.w/2 + Math.cos(ang)*5, sy - 4, 2, 2);
+      }
+    }
+
+    switch(this.type) {
+      case 'gel_drone': this._drawGelDrone(ctx, sx, sy, t); break;
+      case 'crawler': this._drawCrawler(ctx, sx, sy, t); break;
+      case 'guardian': this._drawGuardian(ctx, sx, sy, t); break;
+      case 'alpha_slime': this._drawAlphaSlime(ctx, sx, sy, t); break;
+    }
+
+    // HP bar for bosses
+    if ((this.type==='guardian'||this.type==='alpha_slime') && !this.absorbed) {
+      const bw = this.w + 10;
+      const bx = sx - 5;
+      const by = sy - 6;
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(bx, by, bw, 3);
+      ctx.fillStyle = PAL.redBright;
+      ctx.fillRect(bx, by, Math.round(bw*(this.hp/this.maxHp)), 3);
+    }
+
+    // Alert indicator
+    if (this.alertT > 0) {
+      this.alertT--;
+      ctx.fillStyle = PAL.yellow;
+      drawPixelText(ctx, '!', sx+this.w/2-2, sy-10, PAL.yellow, 1);
+    }
+  }
+
+  _drawGelDrone(ctx, sx, sy, t) {
+    // Small robot drone with green gel
+    ctx.fillStyle = PAL.grayMid;
+    ctx.fillRect(sx+1, sy+3, 8, 7); // body
+    ctx.fillStyle = PAL.cyan;
+    ctx.fillRect(sx+2, sy+1, 6, 3); // head visor
+    ctx.fillStyle = PAL.green;
+    ctx.fillRect(sx+3, sy+2, 4, 1); // eye glow
+    // legs
+    ctx.fillStyle = PAL.grayDark;
+    const legOff = Math.sin(t*0.2) > 0 ? 1 : 0;
+    ctx.fillRect(sx+2, sy+10-legOff, 2, 2+legOff);
+    ctx.fillRect(sx+6, sy+10+legOff, 2, 2-legOff);
+    // antenna
+    ctx.fillStyle = PAL.cyan;
+    ctx.fillRect(sx+4, sy, 1, 2);
+    if (this.stunned) ctx.fillStyle = PAL.yellow;
+    else ctx.fillStyle = PAL.green;
+    ctx.fillRect(sx+4, sy, 2, 1);
+  }
+
+  _drawCrawler(ctx, sx, sy, t) {
+    // Multi-legged slime crawler
+    ctx.fillStyle = '#166534';
+    ctx.fillRect(sx+1, sy+3, 8, 5);
+    ctx.fillStyle = PAL.green;
+    ctx.fillRect(sx+2, sy+4, 6, 3);
+    // eyes
+    ctx.fillStyle = PAL.yellow;
+    ctx.fillRect(sx+2+(this.dir>0?4:1), sy+4, 1, 1);
+    ctx.fillRect(sx+2+(this.dir>0?5:2), sy+4, 1, 1);
+    // legs
+    ctx.fillStyle = '#15803d';
+    for (let i = 0; i < 3; i++) {
+      const lOff = Math.sin(t*0.3+i) > 0 ? 1 : 0;
+      ctx.fillRect(sx+1+i*3, sy+8+lOff, 2, 2);
+    }
+  }
+
+  _drawGuardian(ctx, sx, sy, t) {
+    // Large red robot
+    const bob = Math.sin(t*0.05)*1;
+    // body
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(sx+2, sy+8+bob, 16, 14);
+    // chest plate
+    ctx.fillStyle = PAL.red;
+    ctx.fillRect(sx+4, sy+10+bob, 12, 8);
+    // head
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(sx+3, sy+2+bob, 14, 8);
+    // visor
+    ctx.fillStyle = this.stompPhase===1 ? PAL.yellow : PAL.redBright;
+    ctx.fillRect(sx+4, sy+4+bob, 12, 3);
+    // eyes
+    ctx.fillStyle = PAL.white;
+    ctx.fillRect(sx+5, sy+4+bob, 3, 2);
+    ctx.fillRect(sx+12, sy+4+bob, 3, 2);
+    // legs
+    ctx.fillStyle = '#991b1b';
+    const stomp = this.stompPhase===2 && !this.onGround ? 2 : 0;
+    ctx.fillRect(sx+3, sy+22+bob, 6, 4+stomp);
+    ctx.fillRect(sx+11, sy+22+bob, 6, 4+stomp);
+    // arms
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(sx, sy+9+bob, 3, 8);
+    ctx.fillRect(sx+17, sy+9+bob, 3, 8);
+    // fists
+    ctx.fillStyle = PAL.red;
+    ctx.fillRect(sx-1, sy+16+bob, 4, 4);
+    ctx.fillRect(sx+17, sy+16+bob, 4, 4);
+  }
+
+  _drawAlphaSlime(ctx, sx, sy, t) {
+    // Big pink prototype slime
+    const blob = Math.sin(t*0.08)*2;
+    ctx.fillStyle = '#831843';
+    ctx.fillRect(sx+1, sy+3-blob, 14, 11+blob);
+    ctx.fillStyle = PAL.pink;
+    ctx.fillRect(sx+2, sy+2-blob, 12, 9+blob);
+    // eyes
+    ctx.fillStyle = PAL.white;
+    ctx.fillRect(sx+4, sy+4-blob, 3, 3);
+    ctx.fillRect(sx+9, sy+4-blob, 3, 3);
+    ctx.fillStyle = '#1e1b4b';
+    ctx.fillRect(sx+5, sy+5-blob, 2, 2);
+    ctx.fillRect(sx+10, sy+5-blob, 2, 2);
+    // drips
+    ctx.fillStyle = PAL.pink;
+    for (let i = 0; i < 3; i++) {
+      const dLen = Math.abs(Math.sin(t*0.07+i))*3;
+      ctx.fillRect(sx+3+i*4, sy+11, 2, dLen);
+    }
+  }
+
+  get rect() { return {x:this.x, y:this.y, w:this.w, h:this.h}; }
+}
+
+// ─── PLAYER ──────────────────────────────────────────────────────────────────
+class Player {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.vx = 0; this.vy = 0;
+    this.w = 10; this.h = 10;
+    this.onGround = false;
+    this.jumpCount = 0;
+    this.maxJumps = 1;
+    this.jumpHeld = 0;
+    this.wallCling = false;
+    this.wallDir = 0;
+    this.wallClingTimer = 0;
+    this.hp = 3;
+    this.maxHp = 3;
+    this.invincible = 0;
+    this.dead = false;
+    this.score = 0;
+    this.animT = 0;
+    this.slimeForm = true; // start as slime
+    this.morphCooldown = 0;
+    this.hasDash = false;
+    this.dashCooldown = 0;
+    this.dashTimer = 0;
+    this.absorbing = false;
+    this.absorbedColor = PAL.green;
+    this.absorbedAbility = null;
+    this.zone = 1;
+    this.touching = {left:false, right:false};
+    this.facingDir = 1;
+    this.landAnim = 0;
+    this.lastOnGround = false;
+  }
+
+  update(keys, platforms, enemies, particles) {
+    if (this.dead) return;
+    this.animT++;
+    if (this.invincible > 0) this.invincible--;
+    if (this.morphCooldown > 0) this.morphCooldown--;
+    if (this.dashCooldown > 0) this.dashCooldown--;
+
+    const spd = this.slimeForm ? 1.2 : 1.8;
+    const acc = this.slimeForm ? 0.15 : 0.25;
+    const fric = this.onGround ? 0.8 : 0.92;
+
+    // dash
+    if (this.dashTimer > 0) {
+      this.dashTimer--;
+      this.x += this.facingDir * 3.5;
+      spawnBurst(particles, this.x+this.w/2, this.y+this.h/2, this.absorbedColor, 2);
+      this.vx = 0;
+      // handle collisions during dash
+      this._resolvePlatforms(platforms);
+      return;
+    }
+
+    // horizontal
+    if (keys.left) {
+      this.vx -= acc;
+      this.facingDir = -1;
+    } else if (keys.right) {
+      this.vx += acc;
+      this.facingDir = 1;
+    } else {
+      this.vx *= fric;
+    }
+    this.vx = Math.max(-spd, Math.min(spd, this.vx));
+
+    // wall cling
+    this.touching.left = false;
+    this.touching.right = false;
+    this.wallCling = false;
+
+    if (!this.onGround && this.slimeForm) {
+      if (keys.left && this.touching.left) {
+        this.wallCling = true; this.wallDir = -1;
+        this.wallClingTimer = 90;
+        this.vy = Math.max(-0.5, Math.min(this.vy, 0.8));
+      } else if (keys.right && this.touching.right) {
+        this.wallCling = true; this.wallDir = 1;
+        this.wallClingTimer = 90;
+        this.vy = Math.max(-0.5, Math.min(this.vy, 0.8));
+      }
+    }
+
+    // gravity
+    if (!this.wallCling) {
+      this.vy += GRAVITY;
+      this.vy = Math.min(this.vy, MAX_FALL);
+    }
+
+    // jump
+    if (keys.jumpPressed) {
+      if (this.onGround || this.jumpCount < this.maxJumps) {
+        if (this.wallCling) {
+          this.vy = -3.5;
+          this.vx = -this.wallDir * 2.5;
+          this.jumpCount = 1;
+          spawnBurst(particles, this.x+this.w/2, this.y+this.h/2, PAL.cyan, 5);
+        } else {
+          this.vy = -3.8;
+          if (!this.onGround) this.jumpCount++;
+          spawnBurst(particles, this.x+this.w/2, this.y+this.h, PAL.green, 4);
+        }
+        playSound('jump');
+        keys.jumpPressed = false;
+      }
+    }
+    // variable jump height
+    if (keys.jump && this.vy < -2 && this.jumpHeld < 12) {
+      this.vy -= 0.1;
+      this.jumpHeld++;
+    } else if (!keys.jump) {
+      this.jumpHeld = 0;
+    }
+
+    // dash
+    if (keys.dashPressed && this.hasDash && this.dashCooldown <= 0) {
+      this.dashTimer = 8;
+      this.dashCooldown = 45;
+      playSound('dash');
+      spawnBurst(particles, this.x+this.w/2, this.y+this.h/2, this.absorbedColor, 10);
+      keys.dashPressed = false;
+    }
+
+    // morph
+    if (keys.morphPressed && this.morphCooldown <= 0) {
+      this.slimeForm = !this.slimeForm;
+      this.morphCooldown = 20;
+      spawnBurst(particles, this.x+this.w/2, this.y+this.h/2,
+        this.slimeForm ? PAL.green : PAL.cyan, 6);
+      keys.morphPressed = false;
+    }
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    this.lastOnGround = this.onGround;
+    this.onGround = false;
+    this._resolvePlatforms(platforms);
+
+    // land sound
+    if (this.onGround && !this.lastOnGround) {
+      playSound('land');
+      this.landAnim = 8;
+      spawnBurst(particles, this.x+this.w/2, this.y+this.h, PAL.green, 3);
+    }
+    if (this.landAnim > 0) this.landAnim--;
+    if (this.onGround) { this.jumpCount = 0; }
+
+    // screen bounds
+    if (this.x < 0) this.x = 0;
+  }
+
+  _resolvePlatforms(platforms) {
+    for (const p of platforms) {
+      if (p.type === 'toxic') {
+        // check if player is inside toxic pool
+        if (this.x+this.w > p.x && this.x < p.x+p.w &&
+            this.y+this.h > p.y && this.y < p.y+p.h) {
+          if (this.invincible <= 0) {
+            this.hp = 0;
+            this.dead = true;
+          }
+        }
+        continue;
+      }
+      const pw = this.w, ph = this.h;
+      const px = this.x, py = this.y;
+      if (px+pw > p.x && px < p.x+p.w &&
+          py+ph > p.y && py < p.y+p.h) {
+        // from above
+        if (this.vy >= 0 && py+ph-this.vy <= p.y+2) {
+          this.y = p.y - ph;
+          this.vy = 0;
+          this.onGround = true;
+        }
+        // from below
+        else if (this.vy < 0 && py-this.vy >= p.y+p.h-2) {
+          this.y = p.y + p.h;
+          this.vy = 0;
+        }
+        // from left
+        else if (this.vx > 0) {
+          this.x = p.x - pw;
+          this.vx = 0;
+          this.touching.right = true;
+        }
+        // from right
+        else if (this.vx < 0) {
+          this.x = p.x + p.w;
+          this.vx = 0;
+          this.touching.left = true;
+        }
+      }
+    }
+  }
+
+  tryAbsorb(enemies, particles) {
+    for (const e of enemies) {
+      if (e.absorbed || !e.stunned) continue;
+      const dx = (e.x+e.w/2) - (this.x+this.w/2);
+      const dy = (e.y+e.h/2) - (this.y+this.h/2);
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+        e.absorbed = true;
+        spawnBurst(particles, e.x+e.w/2, e.y+e.h/2, PAL.green, 16);
+        playSound('absorb');
+        this.score += 100;
+        this.hasDash = true;
+        switch(e.type) {
+          case 'gel_drone': this.absorbedColor = PAL.cyan; this.absorbedAbility = 'ZAPPER'; break;
+          case 'crawler': this.absorbedColor = PAL.green; this.absorbedAbility = 'OOZE'; break;
+          case 'guardian': this.absorbedColor = PAL.red; this.absorbedAbility = 'STOMP'; this.maxHp=4; this.hp=Math.min(this.hp+1,4); break;
+          case 'alpha_slime': this.absorbedColor = PAL.pink; this.absorbedAbility = 'PULSE'; break;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  checkEnemyCollision(enemies, particles) {
+    if (this.invincible > 0) return;
+    for (const e of enemies) {
+      if (e.absorbed || e.stunned) continue;
+      const ex = e.x, ey = e.y, ew = e.w, eh = e.h;
+      if (this.x+this.w > ex && this.x < ex+ew &&
+          this.y+this.h > ey && this.y < ey+eh) {
+        // stomp from above
+        if (this.vy > 0.5 && this.y+this.h < ey+eh*0.4) {
+          e.stomp();
+          this.vy = -2.5;
+          this.score += 25;
+          spawnBurst(particles, ex+ew/2, ey, PAL.yellow, 6);
+        } else {
+          // take damage
+          this.hp--;
+          this.invincible = 80;
+          playSound('damage');
+          spawnBurst(particles, this.x+this.w/2, this.y+this.h/2, PAL.redBright, 8);
+          this.vx = -Math.sign(this.vx || 1) * 2;
+          this.vy = -2;
+          if (this.hp <= 0) {
+            this.dead = true;
+            playSound('death');
+          }
+        }
+      }
+    }
+  }
+
+  draw(ctx) {
+    const t = this.animT;
+    const sx = Math.round(this.x);
+    const sy = Math.round(this.y);
+    const flash = this.invincible > 0 && Math.floor(t/3)%2===0;
+    if (flash) return;
+
+    if (this.slimeForm) {
+      this._drawSlimeForm(ctx, sx, sy, t);
+    } else {
+      this._drawHumanForm(ctx, sx, sy, t);
+    }
+  }
+
+  _drawSlimeForm(ctx, sx, sy, t) {
+    const blob = Math.sin(t * 0.12) * 1.5;
+    const squish = this.landAnim > 0 ? 2 : 0;
+    const col = this.absorbedColor;
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(sx+1, sy+this.h-1, this.w-2, 2);
+
+    // body blob - dark outline
+    ctx.fillStyle = '#166534';
+    ctx.fillRect(sx+1, sy+2-blob, 8, 8+blob+squish);
+
+    // body fill
+    ctx.fillStyle = col;
+    ctx.fillRect(sx+2, sy+1-blob, 6, 9+blob+squish);
+    ctx.fillRect(sx+1, sy+3-blob, 8, 6+blob+squish);
+
+    // shine
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillRect(sx+3, sy+2-blob, 2, 2);
+
+    // eyes
+    ctx.fillStyle = '#f0fdf4';
+    ctx.fillRect(sx+2, sy+3-blob, 2, 2);
+    ctx.fillRect(sx+6, sy+3-blob, 2, 2);
+    ctx.fillStyle = '#052e16';
+    ctx.fillRect(sx+3, sy+4-blob, 1, 1);
+    ctx.fillRect(sx+7, sy+4-blob, 1, 1);
+
+    // drip effect
+    if (Math.sin(t*0.08) > 0.5) {
+      ctx.fillStyle = col;
+      ctx.fillRect(sx+4, sy+9+squish, 2, 2);
+    }
+  }
+
+  _drawHumanForm(ctx, sx, sy, t) {
+    const runOff = this.onGround ? Math.sin(t*0.25)*1 : 0;
+    // body - scientist coat
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(sx+2, sy+4, 6, 6);
+    // head
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(sx+2, sy+1, 6, 4);
+    // hair
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(sx+2, sy+1, 6, 1);
+    ctx.fillRect(sx+2, sy, 3, 1);
+    // eyes
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(sx+3, sy+2, 1, 1);
+    ctx.fillRect(sx+6, sy+2, 1, 1);
+    // legs
+    ctx.fillStyle = '#1e3a5f';
+    ctx.fillRect(sx+2, sy+10, 2, 3-Math.round(runOff));
+    ctx.fillRect(sx+6, sy+10, 2, 3+Math.round(runOff));
+    // glowing slime hand (reminder of transformation)
+    ctx.fillStyle = PAL.green;
+    ctx.fillRect(sx+(this.facingDir>0?8:0), sy+5, 2, 2);
+  }
+}
+
+// ─── LEVEL DATA ──────────────────────────────────────────────────────────────
+function buildZone1() {
+  const platforms = [
+    // floor
+    new Platform(0, 168, 400, 12, 'normal'),
+    new Platform(400, 168, 400, 12, 'normal'),
+    // platforms
+    new Platform(60, 140, 60, 8),
+    new Platform(160, 120, 50, 8),
+    new Platform(250, 130, 40, 8),
+    new Platform(320, 105, 60, 8),
+    new Platform(420, 125, 50, 8),
+    new Platform(500, 100, 70, 8),
+    new Platform(600, 115, 50, 8),
+    new Platform(680, 90, 60, 8),
+    new Platform(760, 130, 50, 8),
+    new Platform(30, 100, 30, 8),
+    // boss arena platforms
+    new Platform(820, 145, 120, 8),
+    new Platform(870, 115, 60, 8),
+    new Platform(820, 168, 140, 12, 'normal'),
+  ];
+
+  const enemies = [
+    new Enemy(100, 156, 'gel_drone', 60, 200),
+    new Enemy(250, 156, 'gel_drone', 200, 380),
+    new Enemy(500, 156, 'gel_drone', 400, 600),
+    new Enemy(870, 142, 'guardian', 820, 955),
+  ];
+
+  const textBoxes = [
+    new TextBox(20, 120, "I remember building\nthis lab... before\nI became THIS", 240),
+    new TextBox(310, 90, "The drone patrol\npattern... I designed\nit myself", 240),
+    new TextBox(680, 72, "The Guardian...\nMy own creation.\nForgive me.", 240),
+  ];
+  textBoxes[0].triggerX = 40;
+  textBoxes[1].triggerX = 280;
+  textBoxes[2].triggerX = 660;
+
+  return { platforms, enemies, textBoxes, width: 960, name: 'ZONE 1 - THE LAB' };
+}
+
+function buildZone2() {
+  const platforms = [
+    new Platform(0, 168, 120, 12, 'normal'),
+    new Platform(130, 168, 40, 8, 'toxic'), // toxic pool
+    new Platform(170, 155, 50, 8),
+    new Platform(240, 168, 40, 8, 'toxic'),
+    new Platform(285, 140, 40, 8),
+    new Platform(330, 125, 35, 8),
+    new Platform(380, 110, 35, 8),
+    new Platform(420, 90, 40, 8),
+    new Platform(470, 168, 30, 8, 'toxic'),
+    new Platform(505, 155, 40, 8),
+    new Platform(550, 135, 35, 8),
+    new Platform(600, 115, 35, 8),
+    new Platform(645, 95, 40, 8),
+    new Platform(695, 75, 35, 8),
+    // vertical section with wall cling
+    new Platform(745, 50, 8, 100, 'normal'), // left wall
+    new Platform(795, 50, 8, 100, 'normal'), // right wall
+    new Platform(745, 145, 60, 8),
+    new Platform(860, 155, 40, 8, 'moving', 30, 0.02),
+    new Platform(940, 168, 200, 12, 'normal'),
+    new Platform(940, 168, 40, 8, 'toxic'),
+    new Platform(990, 145, 60, 8),
+    new Platform(1060, 130, 50, 8),
+    new Platform(1130, 115, 80, 8),
+  ];
+
+  const enemies = [
+    new Enemy(180, 143, 'crawler', 170, 220),
+    new Enemy(295, 128, 'crawler', 285, 325),
+    new Enemy(430, 78, 'crawler', 420, 460),
+    new Enemy(515, 143, 'crawler', 505, 545),
+    new Enemy(660, 83, 'crawler', 645, 685),
+    new Enemy(1000, 133, 'crawler', 990, 1050),
+    new Enemy(1140, 103, 'crawler', 1130, 1210),
+  ];
+
+  const textBoxes = [
+    new TextBox(130, 140, "Toxic runoff...\nMy research caused\nthis too.", 240),
+    new TextBox(745, 30, "The drainage shaft.\nSlime form helps\nme cling to walls.", 240),
+    new TextBox(1050, 110, "I can see light\nahead. Almost\nthrough.", 240),
+  ];
+  textBoxes[0].triggerX = 100;
+  textBoxes[1].triggerX = 720;
+  textBoxes[2].triggerX = 1030;
+
+  return { platforms, enemies, textBoxes, width: 1220, name: 'ZONE 2 - THE SEWERS' };
+}
+
+function buildZone3() {
+  const platforms = [
+    new Platform(0, 168, 80, 12, 'normal'),
+    new Platform(100, 155, 40, 8, 'moving', 20, 0.025),
+    new Platform(160, 145, 35, 8),
+    new Platform(205, 130, 35, 8, 'moving', 15, 0.03),
+    new Platform(255, 115, 40, 8),
+    new Platform(315, 100, 35, 8, 'moving', 25, 0.02),
+    new Platform(370, 88, 40, 8),
+    new Platform(425, 75, 35, 8, 'moving', 20, 0.035),
+    new Platform(480, 65, 40, 8),
+    new Platform(535, 78, 35, 8, 'moving', 15, 0.03),
+    new Platform(590, 90, 40, 8),
+    new Platform(645, 75, 35, 8),
+    new Platform(700, 60, 40, 8, 'moving', 20, 0.025),
+    new Platform(760, 50, 60, 8),
+    // alpha slime boss arena
+    new Platform(840, 155, 160, 12, 'normal'),
+    new Platform(860, 125, 50, 8),
+    new Platform(920, 110, 60, 8),
+    new Platform(940, 90, 40, 8),
+  ];
+
+  const enemies = [
+    new Enemy(165, 133, 'gel_drone', 160, 195),
+    new Enemy(265, 103, 'gel_drone', 255, 295),
+    new Enemy(485, 53, 'crawler', 480, 520),
+    new Enemy(650, 63, 'gel_drone', 645, 680),
+    new Enemy(900, 143, 'alpha_slime', 840, 1000),
+  ];
+
+  const textBoxes = [
+    new TextBox(10, 140, "The surface...\nWind tearing at\nmy new form.", 240),
+    new TextBox(470, 48, "I can see the\ncity from here.\nThey can't see me.", 240),
+    new TextBox(840, 90, "My first prototype.\nAlpha. I'm sorry\nwhat I made you.", 240),
+  ];
+  textBoxes[0].triggerX = 40;
+  textBoxes[1].triggerX = 450;
+  textBoxes[2].triggerX = 820;
+
+  return { platforms, enemies, textBoxes, width: 1100, name: 'ZONE 3 - THE SURFACE', wind: 0.08 };
+}
+
+// ─── GAME ────────────────────────────────────────────────────────────────────
+class Game {
+  constructor() {
+    this.canvas = document.getElementById('c');
+    this.ctx = this.canvas.getContext('2d');
+    this.hudCanvas = document.getElementById('hud');
+    this.hudCtx = this.hudCanvas.getContext('2d');
+
+    this.state = 'intro'; // intro, cutscene, playing, dead, zoneTrans, ending
+    this.introFlash = 0;
+    this.cutsceneCard = 0;
+    this.cutsceneTimer = 0;
+    this.deathTimer = 0;
+    this.transTimer = 0;
+    this.transZone = 1;
+    this.frame = 0;
+
+    this.cutsceneCards = [
+      { title: 'DAY 0', text: 'DR. KORX WELTEN.\nHead Researcher.\nBioluminescence Lab.' },
+      { title: 'DAY 0 - 23:47', text: 'The experiment was\nsupposed to be\nsimple.' },
+      { title: 'DAY 1 - 00:03', text: 'The mutagenic gel\ncontact was brief.\nOr so I thought.' },
+      { title: 'DAY 1 - 00:12', text: 'I woke up... changed.\nMy mind is intact.\nMy body... is not.' },
+      { title: 'NOW', text: 'I am KORX.\nI was human once.\nI will find a cure.' },
+    ];
+
+    this.keys = {
+      left:false, right:false, up:false, down:false,
+      jump:false, jumpPressed:false,
+      dash:false, dashPressed:false,
+      absorb:false, absorbPressed:false,
+      morphPressed:false,
+      space:false, spacePressed:false,
+    };
+
+    this.particles = [];
+    this.cameraX = 0;
+    this.bgStars = Array.from({length:40}, () => ({
+      x: Math.random()*1200, y: Math.random()*180,
+      blink: Math.random()*Math.PI*2
+    }));
+
+    this._setupInput();
+    this._startZone(1);
+  }
+
+  _setupInput() {
+    const keyMap = {
+      'ArrowLeft':'left','ArrowRight':'right','ArrowUp':'up','ArrowDown':'down',
+      'a':'left','d':'right','w':'up','s':'down',
+      ' ':'space','ShiftLeft':'dash','ShiftRight':'dash',
+      'z':'absorb','Z':'absorb','x':'morph','X':'morph',
+    };
+    document.addEventListener('keydown', e => {
+      const k = keyMap[e.key] || keyMap[e.code];
+      if (!k) return;
+      e.preventDefault();
+      if (k === 'left') this.keys.left = true;
+      if (k === 'right') this.keys.right = true;
+      if (k === 'up') { this.keys.up = true; this.keys.jump = true; if(!this.keys._jumpWas) this.keys.jumpPressed = true; this.keys._jumpWas=true; }
+      if (k === 'down') this.keys.down = true;
+      if (k === 'space') { this.keys.space = true; if(!this.keys._spaceWas) this.keys.spacePressed = true; this.keys._spaceWas=true;
+        this.keys.jump = true; if(!this.keys._jumpWas) this.keys.jumpPressed = true; this.keys._jumpWas=true; }
+      if (k === 'dash') { this.keys.dash = true; if(!this.keys._dashWas) this.keys.dashPressed = true; this.keys._dashWas=true; }
+      if (k === 'absorb') { this.keys.absorb = true; if(!this.keys._absorbWas) this.keys.absorbPressed = true; this.keys._absorbWas=true; }
+      if (k === 'morph') { if(!this.keys._morphWas) this.keys.morphPressed = true; this.keys._morphWas=true; }
+    });
+    document.addEventListener('keyup', e => {
+      const k = keyMap[e.key] || keyMap[e.code];
+      if (!k) return;
+      if (k === 'left') this.keys.left = false;
+      if (k === 'right') this.keys.right = false;
+      if (k === 'up') { this.keys.up = false; this.keys.jump = false; this.keys._jumpWas=false; }
+      if (k === 'down') this.keys.down = false;
+      if (k === 'space') { this.keys.space = false; this.keys._spaceWas=false;
+        this.keys.jump = false; this.keys._jumpWas=false; }
+      if (k === 'dash') { this.keys.dash = false; this.keys._dashWas=false; }
+      if (k === 'absorb') { this.keys.absorb = false; this.keys._absorbWas=false; }
+      if (k === 'morph') { this.keys._morphWas=false; }
+    });
+  }
+
+  _startZone(zone) {
+    this.zone = zone;
+    this.particles = [];
+    const spawnX = 20, spawnY = 140;
+    const prevPlayer = this.player;
+
+    if (zone === 1) this.level = buildZone1();
+    else if (zone === 2) this.level = buildZone2();
+    else if (zone === 3) this.level = buildZone3();
+
+    this.player = new Player(spawnX, spawnY);
+    this.player.zone = zone;
+    if (zone >= 2) { this.player.maxJumps = 2; }
+    if (prevPlayer) {
+      this.player.hp = prevPlayer.hp;
+      this.player.maxHp = prevPlayer.maxHp;
+      this.player.score = prevPlayer.score;
+      this.player.hasDash = prevPlayer.hasDash;
+      this.player.absorbedColor = prevPlayer.absorbedColor;
+      this.player.absorbedAbility = prevPlayer.absorbedAbility;
+    }
+
+    this.cameraX = 0;
+    this.state = 'playing';
+  }
+
+  _respawn() {
+    this.player.dead = false;
+    this.player.hp = this.player.maxHp;
+    this.player.x = 20;
+    this.player.y = 140;
+    this.player.vx = 0; this.player.vy = 0;
+    this.player.invincible = 120;
+    // reset enemies
+    for (const e of this.level.enemies) {
+      if (e.type !== 'guardian' && e.type !== 'alpha_slime') {
+        e.absorbed = false;
+        e.stunned = false;
+        e.hp = e.maxHp;
+      }
+    }
+    this.particles = [];
+    this.cameraX = 0;
+    this.state = 'playing';
+  }
+
+  update() {
+    this.frame++;
+    const keys = this.keys;
+
+    if (this.state === 'intro') {
+      this.introFlash = (this.introFlash + 1) % 60;
+      if (keys.spacePressed) {
+        keys.spacePressed = false;
+        this.state = 'cutscene';
+        this.cutsceneCard = 0;
+        this.cutsceneTimer = 0;
+      }
+      return;
+    }
+
+    if (this.state === 'cutscene') {
+      this.cutsceneTimer++;
+      if (keys.spacePressed) {
+        keys.spacePressed = false;
+        this.cutsceneCard++;
+        this.cutsceneTimer = 0;
+        if (this.cutsceneCard >= this.cutsceneCards.length) {
+          this._startZone(1);
+        }
+      }
+      return;
+    }
+
+    if (this.state === 'dead') {
+      this.deathTimer++;
+      if (keys.spacePressed && this.deathTimer > 60) {
+        keys.spacePressed = false;
+        this._respawn();
+      }
+      return;
+    }
+
+    if (this.state === 'zoneTrans') {
+      this.transTimer++;
+      if (this.transTimer > 120) {
+        this._startZone(this.transZone);
+        this.state = 'playing';
+      }
+      return;
+    }
+
+    if (this.state === 'ending') {
+      if (keys.spacePressed) {
+        keys.spacePressed = false;
+        // restart
+        this._startZone(1);
+        this.state = 'intro';
+      }
+      return;
+    }
+
+    // PLAYING
+    const p = this.player;
+    const wind = (this.level.wind || 0);
+
+    // wind effect
+    if (wind && !p.onGround) {
+      p.vx += wind;
+    }
+
+    p.update(keys, this.level.platforms, this.level.enemies, this.particles);
+
+    if (!p.dead) {
+      p.checkEnemyCollision(this.level.enemies, this.particles);
+    }
+
+    // absorb
+    if (keys.absorbPressed) {
+      keys.absorbPressed = false;
+      p.tryAbsorb(this.level.enemies, this.particles);
+    }
+
+    // update enemies
+    for (const e of this.level.enemies) {
+      e.update(p, this.level.platforms);
+    }
+
+    // update platforms
+    for (const pl of this.level.platforms) pl.update();
+
+    // particles
+    for (const part of this.particles) part.update();
+    this.particles = this.particles.filter(pt => !pt.dead);
+
+    // textboxes
+    for (const tb of this.level.textBoxes) {
+      if (!tb.triggered && tb.triggerX !== undefined && p.x > tb.triggerX) {
+        tb.triggered = true;
+      }
+      tb.update();
+    }
+
+    // camera follow
+    const targetCam = p.x - W/3;
+    this.cameraX += (targetCam - this.cameraX) * 0.1;
+    this.cameraX = Math.max(0, Math.min(this.cameraX, this.level.width - W));
+
+    // zone end: player reaches right edge
+    if (p.x > this.level.width - 30) {
+      if (this.zone < 3) {
+        this.transZone = this.zone + 1;
+        this.transTimer = 0;
+        this.state = 'zoneTrans';
+      } else {
+        this.state = 'ending';
+      }
+    }
+
+    // player fell off
+    if (p.y > H + 40) {
+      p.dead = true;
+      p.hp = 0;
+      playSound('death');
+    }
+
+    if (p.dead && this.state === 'playing') {
+      this.state = 'dead';
+      this.deathTimer = 0;
+    }
+
+    // reset one-shot keys
+    keys.jumpPressed = false;
+    keys.dashPressed = false;
+    keys.absorbPressed = false;
+    keys.morphPressed = false;
+    keys.spacePressed = false;
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, W, H);
+
+    if (this.state === 'intro') {
+      this._drawIntro(ctx);
+      this._drawHud();
+      return;
+    }
+    if (this.state === 'cutscene') {
+      this._drawCutscene(ctx);
+      this._drawHud();
+      return;
+    }
+    if (this.state === 'ending') {
+      this._drawEnding(ctx);
+      this._drawHud();
+      return;
+    }
+
+    // Draw world
+    this._drawBackground(ctx);
+
+    ctx.save();
+    ctx.translate(-Math.round(this.cameraX), 0);
+
+    // platforms
+    for (const p of this.level.platforms) p.draw(ctx);
+
+    // enemies
+    for (const e of this.level.enemies) e.draw(ctx);
+
+    // textboxes
+    for (const tb of this.level.textBoxes) tb.draw(ctx);
+
+    // player
+    this.player.draw(ctx);
+
+    // particles
+    for (const pt of this.particles) pt.draw(ctx);
+
+    // Zone end marker
+    const endX = this.level.width - 20;
+    ctx.fillStyle = PAL.yellow;
+    ctx.fillRect(endX, 100, 4, 68);
+    // Arrow
+    for (let i=0;i<6;i++) { ctx.fillRect(endX+4+i, 130-i, 2, i*2+2); }
+    ctx.globalAlpha = 0.6 + Math.sin(this.frame*0.1)*0.3;
+    drawPixelText(ctx, 'EXIT', endX-10, 92, PAL.yellow, 1);
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+
+    // dead overlay
+    if (this.state === 'dead') this._drawDeath(ctx);
+    if (this.state === 'zoneTrans') this._drawZoneTrans(ctx);
+
+    // HUD
+    this._drawHud();
+  }
+
+  _drawBackground(ctx) {
+    // gradient bg
+    const z = this.zone;
+    const bgColors = ['#0a0e1a', '#0a0e1a', '#050a0f'];
+    ctx.fillStyle = bgColors[z-1] || '#0a0e1a';
+    ctx.fillRect(0, 0, W, H);
+
+    // zone-specific bg details
+    if (z === 1) {
+      // lab grid lines
+      ctx.fillStyle = '#0d1525';
+      for (let gx = 0; gx < W; gx+=20) ctx.fillRect(gx, 0, 1, H);
+      for (let gy = 0; gy < H; gy+=20) ctx.fillRect(0, gy, W, 1);
+      // blinking lab lights
+      for (let i=0;i<4;i++) {
+        const blink = Math.sin(this.frame*0.05+i*1.3) > 0.8;
+        ctx.fillStyle = blink ? PAL.cyan : '#0e2a30';
+        ctx.fillRect(30+i*70 - Math.round(this.cameraX)*0.1, 5, 8, 3);
+      }
+    } else if (z === 2) {
+      // sewer dripping
+      ctx.fillStyle = '#0d1a0d';
+      ctx.fillRect(0,0,W,H);
+      for (let i=0;i<6;i++) {
+        const dripY = ((this.frame*0.8+i*30)%H);
+        ctx.fillStyle = '#166534';
+        ctx.fillRect(20+i*50, dripY, 1, 4);
+      }
+      // mossy walls tint
+      ctx.fillStyle = 'rgba(0,50,10,0.15)';
+      ctx.fillRect(0, 0, W, H);
+    } else if (z === 3) {
+      // outdoor sky
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0,0,W,H);
+      // stars
+      for (const s of this.bgStars) {
+        const blink = Math.sin(this.frame*0.05+s.blink) > 0.5;
+        ctx.fillStyle = blink ? PAL.white : '#475569';
+        ctx.fillRect(s.x % W, s.y, 1, 1);
+      }
+      // city skyline bg
+      ctx.fillStyle = '#0f1e35';
+      const skyline = [30,50,20,40,60,35,45,25,55,30,40,20,60,50];
+      let bx = 0;
+      for (const bh of skyline) {
+        ctx.fillRect(bx, H-bh-12, 18, bh);
+        ctx.fillStyle = Math.random()>0.95 ? PAL.yellow : '#0f1e35';
+        for (let wy=H-bh-12; wy<H-12; wy+=6) {
+          for (let wx=bx+2;wx<bx+16;wx+=4) {
+            if (Math.random()>0.6) {
+              ctx.fillStyle = Math.random()>0.5 ? PAL.yellow : '#1e3a5f';
+              ctx.fillRect(wx,wy,2,2);
+              ctx.fillStyle = '#0f1e35';
+            }
+          }
+        }
+        bx += 20;
+      }
+      // wind particles
+      for (let i=0;i<3;i++) {
+        const wx = ((this.frame*2+i*100)%W);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(wx, 40+i*20, 6, 1);
+      }
+    }
+  }
+
+  _drawIntro(ctx) {
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0,0,W,H);
+
+    // Animated slime blob bg
+    const t = this.frame;
+    for (let i=0;i<5;i++) {
+      const bx = 30+i*55 + Math.sin(t*0.02+i)*10;
+      const by = 90 + Math.cos(t*0.015+i)*15;
+      ctx.fillStyle = `rgba(74,222,128,0.04)`;
+      ctx.fillRect(bx,by,30,30);
+    }
+
+    // Title flash
+    const flashOn = Math.floor(t/8)%2===0;
+    const titleColor = flashOn ? PAL.green : '#22c55e';
+
+    // Big title
+    const title = 'SLIME';
+    const title2 = 'AWAKENING';
+    const tw = measureText(title, 2);
+    const tw2 = measureText(title2, 2);
+    drawPixelText(ctx, title, (W-tw)/2, 40, titleColor, 2);
+    drawPixelText(ctx, title2, (W-tw2)/2, 55, titleColor, 2);
+
+    // Subtitle
+    const sub = 'A TALE OF MUTATION AND MEMORY';
+    const sw = measureText(sub, 1);
+    drawPixelText(ctx, sub, (W-sw)/2, 80, PAL.gray, 1);
+
+    // Draw KORX illustration
+    const kx = W/2-12, ky = 105;
+    const blob = Math.sin(t*0.08)*2;
+    ctx.fillStyle = '#166534';
+    ctx.fillRect(kx+1, ky+2-blob, 22, 18+blob);
+    ctx.fillStyle = PAL.green;
+    ctx.fillRect(kx+2, ky+1-blob, 20, 17+blob);
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillRect(kx+5, ky+2-blob, 5, 3);
+    ctx.fillStyle = '#f0fdf4';
+    ctx.fillRect(kx+5, ky+5-blob, 4, 4);
+    ctx.fillRect(kx+15, ky+5-blob, 4, 4);
+    ctx.fillStyle = '#052e16';
+    ctx.fillRect(kx+6, ky+6-blob, 2, 2);
+    ctx.fillRect(kx+16, ky+6-blob, 2, 2);
+    // drips
+    ctx.fillStyle = PAL.green;
+    for(let d=0;d<3;d++) {
+      const dl = Math.abs(Math.sin(t*0.07+d))*4;
+      ctx.fillRect(kx+5+d*6, ky+18, 2, dl);
+    }
+
+    // Controls hint
+    const controls = [
+      'ARROWS / WASD - MOVE', 'SPACE - JUMP (HOLD = HIGHER)',
+      'SHIFT - DASH  X - MORPH  Z - ABSORB'
+    ];
+    controls.forEach((c,i) => {
+      const cw = measureText(c,1);
+      drawPixelText(ctx, c, (W-cw)/2, 140+i*9, PAL.grayMid, 1);
+    });
+
+    // Press space prompt
+    const alpha = 0.5 + Math.sin(t*0.08)*0.5;
+    ctx.globalAlpha = alpha;
+    const ps = 'PRESS SPACE TO START';
+    const pw = measureText(ps, 1);
+    drawPixelText(ctx, ps, (W-pw)/2, 170, PAL.cyan, 1);
+    ctx.globalAlpha = 1;
+  }
+
+  _drawCutscene(ctx) {
+    ctx.fillStyle = '#060810';
+    ctx.fillRect(0,0,W,H);
+
+    const card = this.cutsceneCards[this.cutsceneCard];
+    if (!card) return;
+
+    // Film grain
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    for (let i=0;i<30;i++) {
+      ctx.fillRect(Math.random()*W, Math.random()*H, 1+Math.random()*2, 1);
+    }
+
+    // Border lines
+    ctx.fillStyle = '#1a2540';
+    ctx.fillRect(0,0,W,25);
+    ctx.fillRect(0,H-25,W,25);
+    ctx.fillStyle = PAL.cyan;
+    ctx.fillRect(0,24,W,1);
+    ctx.fillRect(0,H-25,W,1);
+
+    // Card number
+    drawPixelText(ctx, `[${this.cutsceneCard+1}/${this.cutsceneCards.length}]`, 8, 9, PAL.gray, 1);
+
+    // Title
+    const tw = measureText(card.title, 1);
+    drawPixelText(ctx, card.title, (W-tw)/2, 9, PAL.yellow, 1);
+
+    // Story text
+    const lines = card.text.split('\n');
+    const startY = 50;
+    const alpha = Math.min(1, this.cutsceneTimer/20);
+    ctx.globalAlpha = alpha;
+    lines.forEach((line, i) => {
+      const lw = measureText(line, 1);
+      drawPixelText(ctx, line, (W-lw)/2, startY + i*12, PAL.white, 1);
+    });
+    ctx.globalAlpha = 1;
+
+    // Skip prompt
+    const sp = this.cutsceneTimer > 30 ? 'SPACE - NEXT' : '';
+    if (sp) {
+      const spAlpha = 0.4+Math.sin(this.frame*0.1)*0.4;
+      ctx.globalAlpha = spAlpha;
+      const sw = measureText(sp, 1);
+      drawPixelText(ctx, sp, (W-sw)/2, H-16, PAL.cyan, 1);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  _drawDeath(ctx) {
+    ctx.fillStyle = 'rgba(153,27,27,0.7)';
+    ctx.fillRect(0, 0, W, H);
+
+    const t = this.deathTimer;
+    const alpha = Math.min(1, t/30);
+    ctx.globalAlpha = alpha;
+
+    const title = 'EXPERIMENT FAILED';
+    const tw = measureText(title, 2);
+    drawPixelText(ctx, title, (W-tw)/2, 60, PAL.redBright, 2);
+
+    const msgs = [
+      'The slime disperses.',
+      'Molecular cohesion lost.',
+      'KORX attempts to reform...',
+    ];
+    const msg = msgs[Math.floor(Math.random()*msgs.length < 1 ? 0 : Math.floor(this.deathTimer/20)%msgs.length)];
+
+    const mw = measureText(msg, 1);
+    drawPixelText(ctx, msg, (W-mw)/2, 95, PAL.white, 1);
+
+    if (t > 60) {
+      const pa = 0.5+Math.sin(this.frame*0.1)*0.4;
+      ctx.globalAlpha = alpha * pa;
+      const prompt = 'RETRY? [SPACE]';
+      const pw = measureText(prompt, 1);
+      drawPixelText(ctx, prompt, (W-pw)/2, 120, PAL.yellow, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _drawZoneTrans(ctx) {
+    const progress = this.transTimer / 120;
+    const alpha = progress < 0.5 ? progress*2 : (1-progress)*2;
+    ctx.fillStyle = `rgba(10,14,26,${1-alpha})`;
+    ctx.fillRect(0,0,W,H);
+
+    ctx.globalAlpha = alpha;
+    const zt = this.transZone === 2 ? 'ZONE 2' : 'ZONE 3';
+    const zn = this.transZone === 2 ? 'THE SEWERS' : 'THE SURFACE';
+    const tw = measureText(zt, 2);
+    const nw = measureText(zn, 1);
+    drawPixelText(ctx, zt, (W-tw)/2, 75, PAL.cyan, 2);
+    drawPixelText(ctx, zn, (W-nw)/2, 95, PAL.white, 1);
+
+    const unlocks = [
+      '', 'UNLOCKED: DOUBLE JUMP + WALL CLING', 'UNLOCKED: WIND PHYSICS'
+    ];
+    const ul = unlocks[this.transZone-1];
+    if (ul) {
+      const uw = measureText(ul, 1);
+      drawPixelText(ctx, ul, (W-uw)/2, 115, PAL.yellow, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _drawEnding(ctx) {
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0,0,W,H);
+
+    const t = this.frame;
+    // Stars
+    for (const s of this.bgStars) {
+      ctx.fillStyle = PAL.white;
+      ctx.fillRect(s.x%W, s.y, 1, 1);
+    }
+
+    ctx.fillStyle = 'rgba(74,222,128,0.05)';
+    ctx.fillRect(0,0,W,H);
+
+    const lines = [
+      {text:'TRANSMISSION COMPLETE', color:PAL.cyan, s:2, y:30},
+      {text:'KORX REACHES THE SURFACE', color:PAL.white, s:1, y:55},
+      {text:'BUT THE CURE REMAINS', color:PAL.white, s:1, y:67},
+      {text:'OUT OF REACH...', color:PAL.gray, s:1, y:79},
+      {text:'TO BE CONTINUED', color:PAL.yellow, s:2, y:105},
+      {text:'SCORE: ' + this.player.score, color:PAL.green, s:1, y:130},
+    ];
+
+    lines.forEach(l => {
+      const alpha = Math.min(1, (t-10)/40);
+      ctx.globalAlpha = alpha;
+      const w = measureText(l.text, l.s);
+      drawPixelText(ctx, l.text, (W-w)/2, l.y, l.color, l.s);
+    });
+
+    ctx.globalAlpha = 0.5 + Math.sin(t*0.08)*0.4;
+    const ps = 'SPACE - PLAY AGAIN';
+    const pw = measureText(ps, 1);
+    drawPixelText(ctx, ps, (W-pw)/2, 160, PAL.cyan, 1);
+    ctx.globalAlpha = 1;
+  }
+
+  _drawHud() {
+    const hctx = this.hudCtx;
+    hctx.clearRect(0, 0, 1280, 720);
+    if (this.state !== 'playing' && this.state !== 'dead') return;
+
+    const p = this.player;
+    const s = SCALE;
+
+    // HP blobs
+    for (let i = 0; i < p.maxHp; i++) {
+      const hx = 10 + i * 22;
+      const hy = 10;
+      const alive = i < p.hp;
+      // blob icon
+      hctx.fillStyle = alive ? PAL.green : PAL.gray;
+      hctx.beginPath();
+      hctx.ellipse(hx+8, hy+8, 8, 8, 0, 0, Math.PI*2);
+      hctx.fill();
+      if (alive) {
+        hctx.fillStyle = '#86efac';
+        hctx.beginPath();
+        hctx.ellipse(hx+6, hy+6, 3, 3, 0, 0, Math.PI*2);
+        hctx.fill();
+        // eyes
+        hctx.fillStyle = '#052e16';
+        hctx.fillRect(hx+4, hy+7, 3, 3);
+        hctx.fillRect(hx+9, hy+7, 3, 3);
+      }
+    }
+
+    // Zone name - top center
+    hctx.font = 'bold 14px monospace';
+    hctx.textAlign = 'center';
+    hctx.fillStyle = 'rgba(10,14,26,0.7)';
+    hctx.fillRect(640-100, 4, 200, 22);
+    hctx.fillStyle = PAL.cyan;
+    hctx.fillText(this.level ? this.level.name : '', 640, 20);
+
+    // Score - bottom left
+    hctx.textAlign = 'left';
+    hctx.fillStyle = 'rgba(10,14,26,0.7)';
+    hctx.fillRect(4, 698, 120, 18);
+    hctx.fillStyle = PAL.yellow;
+    hctx.fillText('SCORE: ' + p.score, 8, 712);
+
+    // Form indicator - bottom center
+    const form = p.slimeForm ? 'SLIME FORM' : 'HUMAN FORM';
+    const formColor = p.slimeForm ? PAL.green : PAL.cyan;
+    hctx.textAlign = 'center';
+    hctx.fillStyle = 'rgba(10,14,26,0.7)';
+    hctx.fillRect(590, 698, 100, 18);
+    hctx.fillStyle = formColor;
+    hctx.fillText(form, 640, 712);
+
+    // Ability slot - bottom right
+    hctx.textAlign = 'right';
+    hctx.fillStyle = 'rgba(10,14,26,0.7)';
+    hctx.fillRect(1156, 698, 120, 18);
+    if (p.absorbedAbility) {
+      hctx.fillStyle = p.absorbedColor;
+      hctx.fillText('[Z] ' + p.absorbedAbility, 1272, 712);
+    } else {
+      hctx.fillStyle = PAL.gray;
+      hctx.fillText('[Z] NONE', 1272, 712);
+    }
+
+    // Dash indicator
+    hctx.textAlign = 'right';
+    hctx.fillStyle = p.hasDash
+      ? (p.dashCooldown > 0 ? PAL.gray : PAL.yellow)
+      : '#334155';
+    hctx.fillText('[SHIFT] DASH' + (p.dashCooldown > 0 ? ' ...' : ''), 1272, 695);
+
+    // Wall cling indicator when active
+    if (p.wallCling) {
+      hctx.textAlign = 'center';
+      hctx.fillStyle = PAL.green;
+      hctx.fillText('WALL CLING!', 640, 40);
+    }
+
+    // Absorb prompt when near stunned enemy
+    if (p.zone !== undefined) {
+      const enemies = this.level ? this.level.enemies : [];
+      for (const e of enemies) {
+        if (e.stunned && !e.absorbed) {
+          const dx = Math.abs((e.x+e.w/2) - (p.x+p.w/2));
+          const dy = Math.abs((e.y+e.h/2) - (p.y+p.h/2));
+          if (dx < 20 && dy < 20) {
+            hctx.textAlign = 'center';
+            hctx.fillStyle = 'rgba(10,14,26,0.8)';
+            hctx.fillRect(540, 695, 200, 22);
+            hctx.fillStyle = PAL.green;
+            hctx.fillText('[Z] ABSORB ENEMY!', 640, 711);
+          }
+        }
+      }
+    }
+  }
+
+  run() {
+    const loop = () => {
+      this.update();
+      this.draw();
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  // Resume audio context on first interaction
+  document.addEventListener('keydown', () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }, { once: true });
+
+  const game = new Game();
+  game.run();
+});
+
+})();
+</script>
+</body>
+</html>

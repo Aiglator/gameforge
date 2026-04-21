@@ -50,6 +50,6 @@ const props = defineProps<{ game: Game }>()
 const thumbnailUrl = computed(() =>
   props.game.thumbnail?.startsWith('http')
     ? props.game.thumbnail
-    : `http://localhost:3003/static/${props.game.thumbnail}`
+    : `http://localhost:3004/static/${props.game.thumbnail}`
 )
 </script>

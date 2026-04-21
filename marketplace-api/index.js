@@ -28,8 +28,14 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
-app.use('/static', express.static(join(__dirname, 'uploads', 'games')))
-app.use('/static/assets', express.static(join(__dirname, 'uploads', 'assets')))
+// Serve game files with iframe-friendly headers
+const staticHeaders = (_req, res, next) => {
+  res.setHeader('X-Frame-Options', 'ALLOWALL')
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self' http://localhost:3002 http://localhost:5173")
+  next()
+}
+app.use('/static', staticHeaders, express.static(join(__dirname, 'uploads', 'games')))
+app.use('/static/assets', staticHeaders, express.static(join(__dirname, 'uploads', 'assets')))
 
 // Health check
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date().toISOString(), orm: 'sequelize', db: 'sqlite' }))

@@ -1,6 +1,14 @@
 <template>
   <div class="max-w-5xl mx-auto px-6 py-8">
-    <h1 class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-6">Developer Dashboard</h1>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Developer Dashboard</h1>
+      <!-- Open Engine CTA -->
+      <RouterLink to="/engine"
+        class="flex items-center space-x-2 bg-secondary/10 border border-secondary/30 text-secondary text-[9px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-secondary/20 transition-colors">
+        <span>⚡</span>
+        <span>Ouvrir Nexus Engine</span>
+      </RouterLink>
+    </div>
 
     <!-- Stats cards -->
     <div class="grid grid-cols-4 gap-3 mb-8">

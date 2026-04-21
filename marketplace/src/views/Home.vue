@@ -23,6 +23,24 @@
       </div>
     </section>
 
+    <!-- Nexus Engine Banner -->
+    <section class="px-8 py-5 border-b border-surface-highest bg-surface-container/40">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <div class="w-8 h-8 bg-secondary/10 border border-secondary/30 flex items-center justify-center text-secondary text-sm">⚡</div>
+          <div>
+            <div class="text-[10px] font-bold text-on-surface uppercase tracking-widest">Nexus Engine IDE</div>
+            <div class="text-[9px] text-on-surface-variant mt-0.5">Crée tes propres jeux 2D/3D directement dans le navigateur et publie-les sur GameForge</div>
+          </div>
+        </div>
+        <RouterLink to="/engine"
+          class="bg-secondary text-surface text-[9px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-secondary/80 transition-colors flex items-center space-x-2 whitespace-nowrap">
+          <span>Ouvrir l'Engine</span>
+          <span style="font-size:12px">→</span>
+        </RouterLink>
+      </div>
+    </section>
+
     <!-- Categories -->
     <section class="px-8 py-6 border-b border-surface-highest">
       <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar">

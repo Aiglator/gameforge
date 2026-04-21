@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>STRAY LIGHT NIGHTMARE</title>
+<style>
+  /* ============================================================
+     BASE STYLES & HUD
+  ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #canvas-container {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+  }
+
+  canvas { display: block; }
+
+  /* HUD Layer */
+  #hud {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Sanity Bar — bottom left */
+  #sanity-container {
+    position: absolute;
+    bottom: 24px; left: 24px;
+    width: 180px;
+  }
+  #sanity-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #aaa;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  #sanity-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #sanity-bar {
+    height: 100%;
+    width: 100%;
+    background: #00ff88;
+    border-radius: 3px;
+    transition: background 0.5s;
+  }
+  #sanity-value {
+    font-size: 11px;
+    color: #888;
+    margin-top: 3px;
+  }
+
+  /* Coordinates — top right */
+  #coords {
+    position: absolute;
+    top: 18px; right: 18px;
+    font-size: 11px;
+    color: #446688;
+    letter-spacing: 1px;
+    text-align: right;
+    line-height: 1.7;
+  }
+
+  /* Fear indicator — bottom right */
+  #fear-indicator {
+    position: absolute;
+    bottom: 30px; right: 30px;
+    width: 50px; height: 50px;
+  }
+  #fear-circle {
+    width: 50px; height: 50px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,30,30,0.9) 0%, rgba(255,0,0,0) 70%);
+    transform: scale(0.2);
+    transition: transform 0.3s ease;
+    opacity: 0;
+  }
+
+  /* Compass — top center */
+  #compass {
+    position: absolute;
+    top: 14px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: #556677;
+    text-align: center;
+  }
+  #compass-needle {
+    color: #ff4400;
+    font-size: 14px;
+  }
+
+  /* Nightmare level — top left */
+  #nightmare-level {
+    position: absolute;
+    top: 18px; left: 18px;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #440022;
+    text-transform: uppercase;
+  }
+  #nightmare-num {
+    font-size: 22px;
+    color: #aa0044;
+    display: block;
+    letter-spacing: 0;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  /* Flashlight icon */
+  #flashlight-icon {
+    position: absolute;
+    bottom: 70px; left: 24px;
+    font-size: 10px;
+    color: #446688;
+    letter-spacing: 2px;
+    opacity: 0.7;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px; height: 14px;
+    pointer-events: none;
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,255,255,0.3);
+  }
+  #crosshair::before {
+    width: 1px; height: 14px;
+    left: 50%; top: 0;
+    transform: translateX(-50%);
+  }
+  #crosshair::after {
+    width: 14px; height: 1px;
+    top: 50%; left: 0;
+    transform: translateY(-50%);
+  }
+
+  /* Glitch overlay */
+  #glitch-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,50,0.08) 2px,
+      rgba(0,0,50,0.08) 4px
+    );
+    mix-blend-mode: overlay;
+  }
+
+  /* Start Screen */
+  #start-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    cursor: pointer;
+  }
+  #start-screen h1 {
+    font-size: clamp(28px, 6vw, 64px);
+    letter-spacing: 8px;
+    color: #fff;
+    text-shadow: 0 0 30px #ff4400, 0 0 60px #aa2200;
+    animation: titlePulse 3s ease-in-out infinite;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  #start-screen .subtitle {
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: #556677;
+    margin-bottom: 60px;
+    text-align: center;
+  }
+  #start-screen .controls-info {
+    font-size: 11px;
+    color: #334455;
+    letter-spacing: 2px;
+    line-height: 2;
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  #start-screen .click-to-start {
+    font-size: 13px;
+    letter-spacing: 5px;
+    color: #ff4400;
+    animation: blink 1.2s step-end infinite;
+  }
+  @keyframes titlePulse {
+    0%, 100% { text-shadow: 0 0 30px #ff4400, 0 0 60px #aa2200; }
+    50% { text-shadow: 0 0 50px #ff6600, 0 0 100px #ff2200, 0 0 140px #660000; }
+  }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+  /* Win/Lose Screen */
+  #end-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  #end-screen h2 {
+    font-size: 48px;
+    letter-spacing: 6px;
+    color: #ff4400;
+    text-shadow: 0 0 40px #ff4400;
+    margin-bottom: 30px;
+  }
+  #end-stats {
+    font-size: 13px;
+    color: #aaa;
+    letter-spacing: 2px;
+    line-height: 2.5;
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  #end-screen .restart-btn {
+    padding: 12px 40px;
+    border: 1px solid #ff4400;
+    background: transparent;
+    color: #ff4400;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    pointer-events: all;
+    transition: background 0.3s;
+  }
+  #end-screen .restart-btn:hover { background: rgba(255,68,0,0.2); }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="start-screen">
+  <h1>STRAY LIGHT<br>NIGHTMARE</h1>
+  <div class="subtitle">A NIGHTMARE MAZE — FIRST-PERSON HORROR</div>
+  <div class="controls-info">
+    WASD / ARROW KEYS — MOVE &amp; TURN<br>
+    MOUSE — LOOK (CLICK TO LOCK)<br>
+    F — TOGGLE FLASHLIGHT<br>
+    ESC — UNLOCK MOUSE
+  </div>
+  <div class="click-to-start">[ CLICK TO BEGIN ]</div>
+</div>
+
+<!-- End Screen -->
+<div id="end-screen">
+  <h2 id="end-title">YOU ESCAPED</h2>
+  <div id="end-stats"></div>
+  <button class="restart-btn" onclick="location.reload()">[ RESTART ]</button>
+</div>
+
+<!-- 3D Canvas -->
+<div id="canvas-container"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="nightmare-level">
+    NIGHTMARE LEVEL
+    <span id="nightmare-num">1</span>
+  </div>
+
+  <div id="compass">
+    N &nbsp; E &nbsp; S &nbsp; W<br>
+    <span id="compass-needle">&#9650;</span>
+  </div>
+
+  <div id="coords">
+    <div id="coord-x">X: 0.00</div>
+    <div id="coord-z">Z: 0.00</div>
+    <div id="coord-cell">CELL: 0,0</div>
+  </div>
+
+  <div id="sanity-container">
+    <div id="sanity-label">Sanity</div>
+    <div id="sanity-bar-bg">
+      <div id="sanity-bar"></div>
+    </div>
+    <div id="sanity-value">100</div>
+  </div>
+
+  <div id="flashlight-icon">[ F ] FLASHLIGHT : ON</div>
+
+  <div id="fear-indicator">
+    <div id="fear-circle"></div>
+  </div>
+
+  <div id="crosshair"></div>
+  <div id="glitch-overlay"></div>
+</div>
+
+<!-- ============================================================
+     THREE.JS IMPORTMAP + MODULE SCRIPT
+============================================================ -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }      from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+
+// ============================================================
+//  CONSTANTS & CONFIG
+// ============================================================
+const MAZE_COLS    = 15;
+const MAZE_ROWS    = 15;
+const CELL_SIZE    = 4;
+const WALL_H       = 3.2;
+const WALL_T       = 0.28;
+const PLAYER_H     = 1.5;
+const PLAYER_SPEED = 4.0;
+const TURN_SPEED   = 1.8;   // keyboard turning rad/s
+const RUNE_CHARS   = ['⊕','⊗','⊘','⊙','∅','≀','≁','∇','Ψ','Φ','Ω','∆','◈','◉','▲'];
+const NUM_ENTITIES = { shade: 2, wraith: 3, crawler: 2 };
+
+// ============================================================
+//  SCENE, CAMERA, RENDERER
+// ============================================================
+const scene    = new THREE.Scene();
+scene.fog      = new THREE.FogExp2(0x00000a, 0.06);
+scene.background = new THREE.Color(0x00000a);
+
+const camera   = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 120);
+camera.position.set(2, PLAYER_H, 2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+// ============================================================
+//  NIGHTMARE COLOR-GRADE SHADER (custom post-processing)
+// ============================================================
+const NightmareColorGradeShader = {
+  name: 'NightmareColorGradeShader',
+  uniforms: {
+    tDiffuse:    { value: null },
+    uTime:       { value: 0.0 },
+    uFear:       { value: 0.0 },
+    uExposure:   { value: 1.0 },
+    uSanity:     { value: 1.0 },
+    uResolution: { value: new THREE.Vector2(innerWidth, innerHeight) },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uFear;
+    uniform float uExposure;
+    uniform float uSanity;
+    uniform vec2  uResolution;
+    varying vec2  vUv;
+
+    /* ---- helpers ---- */
+    float rand(vec2 co) {
+      return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    vec3 adjustSaturation(vec3 col, float sat) {
+      float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      return mix(vec3(lum), col, sat);
+    }
+
+    /* Shadow/midtone/highlight LUT simulation */
+    vec3 colorLUT(vec3 c) {
+      float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      // Shadow tint  -> deep navy #0a0e2a
+      vec3 shadow    = vec3(0.039, 0.055, 0.165);
+      // Midtone tint -> desaturated cool steel
+      vec3 midtone   = vec3(0.22, 0.26, 0.32);
+      // Highlight tint -> warm white/orange #fff0e0
+      vec3 highlight = vec3(1.0, 0.94, 0.88);
+
+      vec3 shadow_blend    = mix(shadow,  c, smoothstep(0.0, 0.35, lum));
+      vec3 midtone_blend   = mix(midtone, c, abs(lum - 0.5) * 2.0);
+      vec3 highlight_blend = mix(c, highlight, smoothstep(0.65, 1.0, lum));
+
+      vec3 out_col = shadow_blend;
+      out_col = mix(out_col, midtone_blend,   smoothstep(0.1, 0.5, lum));
+      out_col = mix(out_col, highlight_blend, smoothstep(0.55, 0.9, lum));
+      return out_col;
+    }
+
+    void main() {
+      vec2 uv = vUv;
+
+      /* 1. CHROMATIC ABERRATION — splits R/G/B channels */
+      float aberration = 0.003 + uFear * 0.014;
+      /* pulse spikes when very scared */
+      aberration += sin(uTime * 18.0) * uFear * 0.008;
+      vec2 offset  = (uv - 0.5) * aberration;
+      float r = texture2D(tDiffuse, uv + offset * 1.6).r;
+      float g = texture2D(tDiffuse, uv).g;
+      float b = texture2D(tDiffuse, uv - offset * 1.2).b;
+      vec3 col = vec3(r, g, b);
+
+      /* 2. EXPOSURE */
+      col *= uExposure;
+
+      /* 3. COLOR LUT — shadow/mid/highlight tinting */
+      col = colorLUT(col);
+
+      /* 4. SATURATION — reduce in dark areas for horror desaturation */
+      float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      float satTarget = mix(0.15, 0.9, smoothstep(0.0, 0.5, lum));
+      /* fear further desaturates */
+      satTarget = mix(satTarget, 0.0, uFear * 0.6);
+      col = adjustSaturation(col, satTarget);
+
+      /* 5. FILM GRAIN */
+      float grain = rand(uv + fract(uTime * 0.1)) * 0.08 - 0.04;
+      grain += sin(uv.x * 800.0 + uTime * 3.0) * cos(uv.y * 600.0 + uTime * 2.0) * 0.012;
+      col += grain * (0.5 + uFear * 0.8);
+
+      /* 6. VIGNETTE — dark oval edge */
+      vec2 uvCentered = uv - 0.5;
+      float vign = 1.0 - dot(uvCentered * vec2(1.6, 1.0), uvCentered * vec2(1.6, 1.0)) * 1.4;
+      vign = clamp(vign, 0.0, 1.0);
+      vign = pow(vign, 0.7);
+      col *= mix(0.0, 1.0, vign);
+
+      /* 7. SCANLINES — subtle horizontal lines */
+      float scanline = sin(uv.y * uResolution.y * 1.5) * 0.5 + 0.5;
+      col *= 1.0 - scanline * 0.15;
+
+      /* 8. SANITY LOW — near-monochrome + colour distortion */
+      if (uSanity < 0.3) {
+        float t = 1.0 - (uSanity / 0.3);
+        col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), t * 0.85);
+        /* jitter rows at very low sanity */
+        if (uSanity < 0.1) {
+          float jitter = sin(uTime * 40.0 + uv.y * 120.0) * 0.012 * (1.0 - uSanity * 10.0);
+          col.r = texture2D(tDiffuse, uv + vec2(jitter, 0.0)).r;
+          col.b = texture2D(tDiffuse, uv - vec2(jitter * 1.5, 0.0)).b;
+        }
+      }
+
+      col = clamp(col, 0.0, 1.0);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+};
+
+// ============================================================
+//  POST-PROCESSING COMPOSER
+// ============================================================
+const composer  = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(innerWidth, innerHeight),
+  0.55,   // strength
+  0.5,    // radius
+  0.72    // threshold
+);
+composer.addPass(bloomPass);
+
+const colorGradePass = new ShaderPass(NightmareColorGradeShader);
+composer.addPass(colorGradePass);
+
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
+
+// ============================================================
+//  LIGHTS
+// ============================================================
+// Very dim ambient — cool dark
+const ambientLight = new THREE.AmbientLight(0x060810, 0.05);
+scene.add(ambientLight);
+
+// Player flashlight
+const flashlight = new THREE.SpotLight(0xfff8e0, 3.5, 18, 0.4, 0.3, 1.4);
+flashlight.castShadow = true;
+flashlight.shadow.mapSize.set(512, 512);
+scene.add(flashlight);
+scene.add(flashlight.target);
+
+// Scattered atmospheric point lights
+const atmosphericLights = [];
+function makeAtmosphericLight(hex, intensity, x, z) {
+  const pl = new THREE.PointLight(hex, intensity, 12, 2);
+  pl.position.set(x, 1.2, z);
+  scene.add(pl);
+  atmosphericLights.push({ light: pl, baseIntensity: intensity, hex });
+  return pl;
+}
+
+// ============================================================
+//  MAZE GENERATION (Recursive Backtracker DFS)
+// ============================================================
+// grid[row][col] = { top, right, bottom, left } — true = wall exists
+const grid = [];
+const visited = [];
+for (let r = 0; r < MAZE_ROWS; r++) {
+  grid[r] = [];
+  visited[r] = [];
+  for (let c = 0; c < MAZE_COLS; c++) {
+    grid[r][c] = { top: true, right: true, bottom: true, left: true };
+    visited[r][c] = false;
+  }
+}
+
+function mazeDFS(r, c) {
+  visited[r][c] = true;
+  const dirs = [[0,1,'right','left'],[-1,0,'top','bottom'],[0,-1,'left','right'],[1,0,'bottom','top']];
+  // shuffle
+  for (let i = dirs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+  }
+  for (const [dr, dc, wall1, wall2] of dirs) {
+    const nr = r + dr, nc = c + dc;
+    if (nr >= 0 && nr < MAZE_ROWS && nc >= 0 && nc < MAZE_COLS && !visited[nr][nc]) {
+      grid[r][c][wall1] = false;
+      grid[nr][nc][wall2] = false;
+      mazeDFS(nr, nc);
+    }
+  }
+}
+mazeDFS(0, 0);
+
+// ============================================================
+//  MATERIALS
+// ============================================================
+const wallMat = new THREE.MeshStandardMaterial({
+  color: 0x080c14, roughness: 0.95, metalness: 0.0
+});
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x050810, roughness: 1.0, metalness: 0.0
+});
+const ceilMat = new THREE.MeshStandardMaterial({
+  color: 0x0a0e1a, roughness: 1.0, metalness: 0.0
+});
+
+// ============================================================
+//  MAZE GEOMETRY BUILDER
+// ============================================================
+const wallBoxes = []; // { box: THREE.Box3 } for collision
+
+function cellCenter(col, row) {
+  return {
+    x: col * CELL_SIZE + CELL_SIZE / 2,
+    z: row * CELL_SIZE + CELL_SIZE / 2
+  };
+}
+
+function addWall(x, y, z, scaleX, scaleZ) {
+  const geo  = new THREE.BoxGeometry(scaleX, WALL_H, scaleZ);
+  const mesh = new THREE.Mesh(geo, wallMat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow    = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  // Bounding box for collision
+  const box = new THREE.Box3().setFromObject(mesh);
+  wallBoxes.push(box);
+  return mesh;
+}
+
+// Outer boundary walls
+const mazeW = MAZE_COLS * CELL_SIZE;
+const mazeD = MAZE_ROWS * CELL_SIZE;
+addWall(mazeW / 2, WALL_H / 2, 0,        mazeW + WALL_T, WALL_T);
+addWall(mazeW / 2, WALL_H / 2, mazeD,    mazeW + WALL_T, WALL_T);
+addWall(0,         WALL_H / 2, mazeD / 2, WALL_T, mazeD);
+addWall(mazeW,     WALL_H / 2, mazeD / 2, WALL_T, mazeD);
+
+// Interior walls from maze data
+for (let r = 0; r < MAZE_ROWS; r++) {
+  for (let c = 0; c < MAZE_COLS; c++) {
+    const cx = c * CELL_SIZE;
+    const cz = r * CELL_SIZE;
+    // Right wall
+    if (grid[r][c].right && c < MAZE_COLS - 1) {
+      addWall(cx + CELL_SIZE, WALL_H / 2, cz + CELL_SIZE / 2, WALL_T, CELL_SIZE);
+    }
+    // Bottom wall
+    if (grid[r][c].bottom && r < MAZE_ROWS - 1) {
+      addWall(cx + CELL_SIZE / 2, WALL_H / 2, cz + CELL_SIZE, CELL_SIZE, WALL_T);
+    }
+  }
+}
+
+// Floor
+const floorGeo  = new THREE.PlaneGeometry(mazeW + 4, mazeD + 4);
+const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+floorMesh.rotation.x = -Math.PI / 2;
+floorMesh.position.set(mazeW / 2, 0, mazeD / 2);
+floorMesh.receiveShadow = true;
+scene.add(floorMesh);
+
+// Ceiling
+const ceilGeo  = new THREE.PlaneGeometry(mazeW + 4, mazeD + 4);
+const ceilMesh = new THREE.Mesh(ceilGeo, ceilMat);
+ceilMesh.rotation.x = Math.PI / 2;
+ceilMesh.position.set(mazeW / 2, WALL_H, mazeD / 2);
+scene.add(ceilMesh);
+
+// ============================================================
+//  GLOWING RUNES ON WALLS
+// ============================================================
+const runeColors = [0x8800ff, 0xff1a1a, 0x00ff88, 0x4488ff, 0xff8800];
+function spawnRunes() {
+  for (let i = 0; i < 40; i++) {
+    const col = Math.floor(Math.random() * MAZE_COLS);
+    const row = Math.floor(Math.random() * MAZE_ROWS);
+    const cx  = col * CELL_SIZE + CELL_SIZE / 2;
+    const cz  = row * CELL_SIZE + CELL_SIZE / 2;
+    const side = Math.floor(Math.random() * 4);
+    let x = cx, z = cz, rotY = 0;
+    if (side === 0) { z = row * CELL_SIZE + 0.2; rotY = 0; }
+    else if (side === 1) { z = row * CELL_SIZE + CELL_SIZE - 0.2; rotY = Math.PI; }
+    else if (side === 2) { x = col * CELL_SIZE + 0.2; rotY = Math.PI / 2; }
+    else { x = col * CELL_SIZE + CELL_SIZE - 0.2; rotY = -Math.PI / 2; }
+
+    const runeGeo = new THREE.PlaneGeometry(0.6, 0.6);
+    const runeMat = new THREE.MeshBasicMaterial({
+      color: runeColors[Math.floor(Math.random() * runeColors.length)],
+      transparent: true, opacity: 0.85,
+      side: THREE.DoubleSide
+    });
+    const runeMesh = new THREE.Mesh(runeGeo, runeMat);
+    runeMesh.position.set(x, 0.8 + Math.random() * 1.6, z);
+    runeMesh.rotation.y = rotY;
+    // Set emissive via userData for animation
+    runeMesh.userData.runePhase = Math.random() * Math.PI * 2;
+    scene.add(runeMesh);
+
+    // Canvas texture with unicode rune
+    const canvas   = document.createElement('canvas');
+    canvas.width   = 64; canvas.height = 64;
+    const ctx      = canvas.getContext('2d');
+    ctx.fillStyle  = 'transparent';
+    ctx.clearRect(0, 0, 64, 64);
+    ctx.font       = '42px serif';
+    ctx.fillStyle  = '#ffffff';
+    ctx.textAlign  = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(RUNE_CHARS[Math.floor(Math.random() * RUNE_CHARS.length)], 32, 32);
+    const tex      = new THREE.CanvasTexture(canvas);
+    runeMesh.material.map = tex;
+    runeMesh.material.needsUpdate = true;
+  }
+}
+spawnRunes();
+
+// ============================================================
+//  ATMOSPHERIC POINT LIGHTS — scatter in maze
+// ============================================================
+const lightConfigs = [
+  { hex: 0xff1a1a, base: 1.2 },   // Crimson flicker
+  { hex: 0x00ff88, base: 0.8 },   // Toxic green
+  { hex: 0x4488ff, base: 1.0 },   // Cold blue
+  { hex: 0xaa00ff, base: 1.5 },   // Void purple
+  { hex: 0xff8800, base: 1.1 },   // Amber warning
+  { hex: 0xffffff, base: 0.6 },   // Nightmare white
+];
+lightConfigs.forEach((cfg, i) => {
+  const col = 2 + Math.floor(i * (MAZE_COLS - 4) / lightConfigs.length);
+  const row = 2 + Math.floor(i * (MAZE_ROWS - 4) / lightConfigs.length);
+  const { x, z } = cellCenter(col, row);
+  makeAtmosphericLight(cfg.hex, cfg.base, x, z);
+});
+
+// ============================================================
+//  NIGHTMARE ENTITIES
+// ============================================================
+const entities = [];
+
+class Entity {
+  constructor(type, mesh, col, row) {
+    this.type     = type;
+    this.mesh     = mesh;
+    this.col      = col;
+    this.row      = row;
+    this.pos      = new THREE.Vector3(
+      col * CELL_SIZE + CELL_SIZE / 2,
+      this.yOffset(),
+      row * CELL_SIZE + CELL_SIZE / 2
+    );
+    this.vel      = new THREE.Vector3();
+    this.target   = null;
+    this.speed    = this.baseSpeed();
+    this.phase    = Math.random() * Math.PI * 2;
+    this.alertTimer = 0;
+    this.dirTimer   = 0;
+    this.dir        = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+    this.mesh.position.copy(this.pos);
+    scene.add(this.mesh);
+  }
+  yOffset()   { return this.type === 'shade' ? 0.5 + 0.8 : this.type === 'crawler' ? 0.1 : 0.6; }
+  baseSpeed() { return this.type === 'shade' ? 1.8 : this.type === 'crawler' ? 1.0 : 2.5; }
+}
+
+// SHADE — thin tall capsule, emissive purple
+function spawnShade(col, row) {
+  const geo  = new THREE.CapsuleGeometry(0.28, 1.5, 4, 8);
+  const mat  = new THREE.MeshStandardMaterial({
+    color: 0x220055, emissive: 0x8800ff, emissiveIntensity: 2.2,
+    roughness: 0.4, metalness: 0.0, transparent: true, opacity: 0.88
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  return new Entity('shade', mesh, col, row);
+}
+
+// LIGHT WRAITH — icosahedron, emissive white, bright
+function spawnWraith(col, row) {
+  const geo  = new THREE.IcosahedronGeometry(0.58, 1);
+  const mat  = new THREE.MeshStandardMaterial({
+    color: 0x888888, emissive: 0xffffff, emissiveIntensity: 4.0,
+    roughness: 0.0, metalness: 0.8, wireframe: false, transparent: true, opacity: 0.92
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  // Add inner light
+  const pl   = new THREE.PointLight(0xffffff, 2.5, 6, 2);
+  mesh.add(pl);
+  return new Entity('wraith', mesh, col, row);
+}
+
+// CRAWLER — flat box, crimson
+function spawnCrawler(col, row) {
+  const geo  = new THREE.BoxGeometry(0.8, 0.2, 0.8);
+  const mat  = new THREE.MeshStandardMaterial({
+    color: 0x550000, emissive: 0xff0000, emissiveIntensity: 2.5,
+    roughness: 0.7, metalness: 0.0
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  return new Entity('crawler', mesh, col, row);
+}
+
+// Spawn entities at safe distance from player start
+function safeSpawn(type, count) {
+  for (let i = 0; i < count; i++) {
+    let col, row;
+    do {
+      col = 1 + Math.floor(Math.random() * (MAZE_COLS - 2));
+      row = 1 + Math.floor(Math.random() * (MAZE_ROWS - 2));
+    } while (col < 4 && row < 4);
+    let e;
+    if (type === 'shade')   e = spawnShade(col, row);
+    if (type === 'wraith')  e = spawnWraith(col, row);
+    if (type === 'crawler') e = spawnCrawler(col, row);
+    entities.push(e);
+  }
+}
+safeSpawn('shade',   NUM_ENTITIES.shade);
+safeSpawn('wraith',  NUM_ENTITIES.wraith);
+safeSpawn('crawler', NUM_ENTITIES.crawler);
+
+// ============================================================
+//  NIGHTMARE CORE (EXIT)
+// ============================================================
+const coreGeo  = new THREE.SphereGeometry(1, 16, 16);
+const coreMat  = new THREE.MeshStandardMaterial({
+  color: 0xff2200, emissive: 0xff4400, emissiveIntensity: 6.0,
+  roughness: 0.2, metalness: 0.5, transparent: true, opacity: 0.92
+});
+const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+const coreCol  = MAZE_COLS - 2;
+const coreRow  = MAZE_ROWS - 2;
+const { x: coreX, z: coreZ } = cellCenter(coreCol, coreRow);
+coreMesh.position.set(coreX, 1.2, coreZ);
+scene.add(coreMesh);
+// Core point light
+const coreLight = new THREE.PointLight(0xff4400, 4.0, 14, 2);
+coreLight.position.copy(coreMesh.position);
+scene.add(coreLight);
+
+// ============================================================
+//  PLAYER STATE
+// ============================================================
+const player = {
+  pos:      new THREE.Vector3(CELL_SIZE / 2, PLAYER_H, CELL_SIZE / 2),
+  yaw:      0,
+  pitch:    0,
+  roll:     0,
+  sanity:   100,
+  fear:     0,
+  flashOn:  true,
+  moving:   false,
+  alive:    true,
+  won:      false,
+};
+
+// ============================================================
+//  INPUT
+// ============================================================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyF' && gameStarted) toggleFlashlight();
+  if (e.code === 'Escape') document.exitPointerLock?.();
+});
+window.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+let pointerLocked = false;
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === renderer.domElement;
+});
+renderer.domElement.addEventListener('click', () => {
+  if (gameStarted) renderer.domElement.requestPointerLock();
+});
+
+let mouseDX = 0, mouseDY = 0;
+document.addEventListener('mousemove', e => {
+  if (!pointerLocked) return;
+  mouseDX += e.movementX;
+  mouseDY += e.movementY;
+});
+
+function toggleFlashlight() {
+  player.flashOn = !player.flashOn;
+  flashlight.intensity = player.flashOn ? 3.5 : 0;
+  document.getElementById('flashlight-icon').textContent =
+    `[ F ] FLASHLIGHT : ${player.flashOn ? 'ON' : 'OFF'}`;
+  audioClick();
+}
+
+// ============================================================
+//  COLLISION HELPERS
+// ============================================================
+function moveWithCollision(pos, dx, dz, radius = 0.35) {
+  const testBox = new THREE.Box3(
+    new THREE.Vector3(pos.x + dx - radius, 0.1, pos.z + dz - radius),
+    new THREE.Vector3(pos.x + dx + radius, PLAYER_H + 0.1, pos.z + dz + radius)
+  );
+  for (const wb of wallBoxes) {
+    if (wb.intersectsBox(testBox)) return false;
+  }
+  return true;
+}
+
+function collidesWall(x, z, radius = 0.3) {
+  const testBox = new THREE.Box3(
+    new THREE.Vector3(x - radius, 0.1, z - radius),
+    new THREE.Vector3(x + radius, 2.0,  z + radius)
+  );
+  for (const wb of wallBoxes) {
+    if (wb.intersectsBox(testBox)) return true;
+  }
+  return false;
+}
+
+// ============================================================
+//  WEB AUDIO — synthesized sounds
+// ============================================================
+let audioCtx, droneNode1, droneNode2, heartNode, entityGainNode, entityOsc;
+let heartInterval = null;
+let audioReady = false;
+
+function initAudio() {
+  if (audioReady) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Ambient drone — two detuned oscillators
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.08;
+  masterGain.connect(audioCtx.destination);
+
+  const droneFilter = audioCtx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 320;
+  droneFilter.connect(masterGain);
+
+  droneNode1 = audioCtx.createOscillator();
+  droneNode1.type = 'sawtooth';
+  droneNode1.frequency.value = 55;
+  const dg1 = audioCtx.createGain(); dg1.gain.value = 0.5;
+  droneNode1.connect(dg1); dg1.connect(droneFilter);
+  droneNode1.start();
+
+  droneNode2 = audioCtx.createOscillator();
+  droneNode2.type = 'sawtooth';
+  droneNode2.frequency.value = 58; // 3 Hz detune
+  const dg2 = audioCtx.createGain(); dg2.gain.value = 0.4;
+  droneNode2.connect(dg2); dg2.connect(droneFilter);
+  droneNode2.start();
+
+  // Entity scraping — high pitched, gated by proximity
+  entityOsc = audioCtx.createOscillator();
+  entityOsc.type = 'sawtooth';
+  entityOsc.frequency.value = 1200;
+  const entityFilter = audioCtx.createBiquadFilter();
+  entityFilter.type = 'bandpass';
+  entityFilter.frequency.value = 1800;
+  entityFilter.Q.value = 2;
+  entityGainNode = audioCtx.createGain();
+  entityGainNode.gain.value = 0;
+  entityOsc.connect(entityFilter);
+  entityFilter.connect(entityGainNode);
+  entityGainNode.connect(audioCtx.destination);
+  entityOsc.start();
+
+  startHeartbeat(40);
+  audioReady = true;
+}
+
+function startHeartbeat(bpm) {
+  if (heartInterval) clearInterval(heartInterval);
+  const interval = 60000 / bpm;
+  heartInterval = setInterval(() => {
+    if (!audioReady || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 60;
+    gain.gain.setValueAtTime(0.0, now);
+    gain.gain.linearRampToValueAtTime(0.55, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.25);
+    // double-beat
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.value = 55;
+    gain2.gain.setValueAtTime(0.0, now + 0.15);
+    gain2.gain.linearRampToValueAtTime(0.32, now + 0.19);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    osc2.connect(gain2); gain2.connect(audioCtx.destination);
+    osc2.start(now + 0.15); osc2.stop(now + 0.4);
+  }, interval);
+}
+
+function audioClick() {
+  if (!audioReady) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g   = audioCtx.createGain();
+  osc.type = 'square'; osc.frequency.value = 1800;
+  g.gain.setValueAtTime(0.12, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.07);
+}
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let gameStarted   = false;
+let startTime     = 0;
+let elapsedTime   = 0;
+let totalFear     = 0;
+let entitiesEvaded = 0;
+let nightmareLevel = 1;
+let levelTimer    = 0;
+let clock         = new THREE.Clock();
+
+// ============================================================
+//  HUD REFERENCES
+// ============================================================
+const hudSanityBar   = document.getElementById('sanity-bar');
+const hudSanityVal   = document.getElementById('sanity-value');
+const hudCoordX      = document.getElementById('coord-x');
+const hudCoordZ      = document.getElementById('coord-z');
+const hudCoordCell   = document.getElementById('coord-cell');
+const hudFearCircle  = document.getElementById('fear-circle');
+const hudNightmare   = document.getElementById('nightmare-num');
+const hudCompass     = document.getElementById('compass-needle');
+const hudGlitch      = document.getElementById('glitch-overlay');
+
+// ============================================================
+//  RAYCASTER for entity line-of-sight
+// ============================================================
+const raycaster    = new THREE.Raycaster();
+const wallMeshes   = scene.children.filter(c => c.material === wallMat);
+
+function entitySeesPlayer(entity) {
+  const dir = new THREE.Vector3().subVectors(player.pos, entity.pos).normalize();
+  raycaster.set(entity.pos, dir);
+  raycaster.far = entity.pos.distanceTo(player.pos);
+  const hits = raycaster.intersectObjects(wallMeshes);
+  return hits.length === 0;
+}
+
+// ============================================================
+//  START SCREEN LOGIC
+// ============================================================
+document.getElementById('start-screen').addEventListener('click', startGame);
+
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  gameStarted = true;
+  startTime   = performance.now();
+  initAudio();
+  clock.start();
+  renderer.domElement.requestPointerLock();
+  animate();
+}
+
+// ============================================================
+//  ENTITY UPDATE
+// ============================================================
+function updateEntities(dt) {
+  let nearestDist = Infinity;
+
+  for (const e of entities) {
+    e.phase += dt;
+
+    // Direction change timer
+    e.dirTimer -= dt;
+    if (e.dirTimer < 0) {
+      e.dirTimer = 1.0 + Math.random() * 2.0;
+      e.dir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+    }
+
+    const distToPlayer = e.pos.distanceTo(player.pos);
+    nearestDist = Math.min(nearestDist, distToPlayer);
+
+    let speed = e.speed * (1 + nightmareLevel * 0.15);
+
+    // Behavior per type
+    if (e.type === 'shade') {
+      // Patrol; if sees player within 10 units — charge
+      if (distToPlayer < 10 && entitySeesPlayer(e)) {
+        const toPlayer = new THREE.Vector3().subVectors(player.pos, e.pos).normalize();
+        e.dir.lerp(toPlayer, 0.12);
+        speed = 3.0 + nightmareLevel * 0.3;
+        e.mesh.material.emissiveIntensity = 3.5 + Math.sin(e.phase * 12) * 0.5;
+      } else {
+        e.mesh.material.emissiveIntensity = 2.0 + Math.sin(e.phase * 2) * 0.4;
+      }
+      e.pos.y = (e.type === 'shade' ? 0.5 + 0.8 : 0.6) + Math.sin(e.phase * 1.8) * 0.15;
+
+    } else if (e.type === 'wraith') {
+      // Bounce randomly — high speed
+      speed = 2.2 + Math.sin(e.phase * 0.7) * 0.8;
+      e.mesh.rotation.x += dt * 1.2;
+      e.mesh.rotation.y += dt * 0.9;
+      e.mesh.material.emissiveIntensity = 3.0 + Math.sin(e.phase * 5) * 1.0;
+      e.pos.y = 0.6 + Math.sin(e.phase * 2.3) * 0.4;
+
+    } else if (e.type === 'crawler') {
+      // Always pathfinds toward player
+      if (distToPlayer > 0.5) {
+        const toPlayer = new THREE.Vector3().subVectors(player.pos, e.pos);
+        toPlayer.y = 0;
+        toPlayer.normalize();
+        e.dir.lerp(toPlayer, 0.05);
+      }
+      e.mesh.rotation.y += dt * 2;
+      e.mesh.material.emissiveIntensity = 1.5 + Math.sin(e.phase * 8) * 1.0;
+      e.pos.y = 0.1;
+    }
+
+    // Move entity
+    const nx = e.pos.x + e.dir.x * speed * dt;
+    const nz = e.pos.z + e.dir.z * speed * dt;
+    if (!collidesWall(nx, e.pos.z, 0.3)) e.pos.x = nx;
+    else e.dir.x *= -1;
+    if (!collidesWall(e.pos.x, nz, 0.3)) e.pos.z = nz;
+    else e.dir.z *= -1;
+
+    e.mesh.position.copy(e.pos);
+    e.mesh.lookAt(e.pos.x + e.dir.x, e.pos.y, e.pos.z + e.dir.z);
+  }
+
+  return nearestDist;
+}
+
+// ============================================================
+//  MAIN ANIMATE LOOP
+// ============================================================
+function animate() {
+  if (!player.alive && !player.won) return;
+  requestAnimationFrame(animate);
+
+  const dt   = Math.min(clock.getDelta(), 0.05);
+  const time = clock.getElapsedTime();
+  elapsedTime = (performance.now() - startTime) / 1000;
+
+  // ---- Nightmare level escalation ----
+  levelTimer += dt;
+  if (levelTimer > 120) { levelTimer = 0; nightmareLevel++; }
+  hudNightmare.textContent = nightmareLevel;
+
+  // ---- PLAYER MOVEMENT ----
+  let moveX = 0, moveZ = 0;
+
+  // Mouse look
+  if (pointerLocked) {
+    player.yaw   -= mouseDX * 0.0018;
+    player.pitch -= mouseDY * 0.0012;
+    player.pitch  = Math.max(-0.45, Math.min(0.45, player.pitch));
+    mouseDX = 0; mouseDY = 0;
+  }
+
+  // Keyboard turn
+  if (keys['ArrowLeft'])  player.yaw += TURN_SPEED * dt;
+  if (keys['ArrowRight']) player.yaw -= TURN_SPEED * dt;
+
+  // Forward/back/strafe
+  const cos = Math.cos(player.yaw), sin = Math.sin(player.yaw);
+  let fwd = 0, strafe = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])   fwd    =  1;
+  if (keys['KeyS'] || keys['ArrowDown']) fwd    = -1;
+  if (keys['KeyA'])                      strafe = -1;
+  if (keys['KeyD'])                      strafe =  1;
+
+  player.moving = fwd !== 0 || strafe !== 0;
+
+  const speed   = PLAYER_SPEED * dt;
+  moveX  = (-sin * fwd + cos * strafe) * speed;
+  moveZ  = (-cos * fwd - sin * strafe) * speed;
+
+  // Collision-resolved movement
+  if (moveWithCollision(player.pos, moveX, 0))  player.pos.x += moveX;
+  if (moveWithCollision(player.pos, 0, moveZ))  player.pos.z += moveZ;
+
+  // Subtle camera roll from movement
+  const targetRoll = strafe * (-2 * Math.PI / 180) + (player.moving ? Math.sin(time * 5) * 0.8 * Math.PI / 180 : 0);
+  player.roll += (targetRoll - player.roll) * 4 * dt;
+
+  // ---- CAMERA ----
+  camera.position.copy(player.pos);
+  // Breathing bob
+  camera.position.y += Math.sin(time * 1.6) * 0.018;
+
+  const euler = new THREE.Euler(player.pitch, player.yaw, player.roll, 'YXZ');
+  camera.quaternion.setFromEuler(euler);
+
+  // ---- FLASHLIGHT follows camera ----
+  if (player.flashOn) {
+    flashlight.position.copy(camera.position);
+    const fwdVec = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    flashlight.target.position.copy(camera.position).addScaledVector(fwdVec, 10);
+    flashlight.target.updateMatrixWorld();
+  }
+
+  // ---- ENTITIES ----
+  const nearestEntityDist = updateEntities(dt);
+
+  // ---- SANITY & FEAR ----
+  const fearRange = 6.0;
+  const fearFactor = Math.max(0, 1 - nearestEntityDist / fearRange);
+  player.fear += (fearFactor - player.fear) * 2.5 * dt;
+  player.fear  = Math.max(0, Math.min(1, player.fear));
+  totalFear   += player.fear * dt;
+
+  // Sanity
+  if (nearestEntityDist < fearRange) {
+    player.sanity -= 10 * dt * (1 + nightmareLevel * 0.2);
+  } else {
+    player.sanity += 2 * dt;
+  }
+  player.sanity = Math.max(0, Math.min(100, player.sanity));
+
+  // Entity sound
+  if (audioReady && entityGainNode) {
+    const targetVol = fearFactor * 0.18;
+    entityGainNode.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.2);
+    entityOsc.frequency.setTargetAtTime(800 + fearFactor * 900, audioCtx.currentTime, 0.3);
+  }
+
+  // Heartbeat speed
+  if (audioReady) {
+    const bpm = 40 + player.fear * 100 + (100 - player.sanity) * 0.4;
+    clearInterval(heartInterval);
+    startHeartbeat(bpm);
+  }
+
+  // ---- ATMOSPHERIC LIGHTS ANIMATION ----
+  const lightPatterns = [
+    t => 0.5 + 1.5 * Math.abs(Math.sin(t * 3.1)),             // Crimson flicker
+    t => 0.5 + 0.3 * Math.sin(t * 0.7),                       // Toxic green slow osc
+    t => 1.0,                                                   // Cold blue stable
+    t => Math.random() > 0.98 ? 0.0 : 0.9 + 0.6 * Math.random(), // Void purple random
+    t => (Math.sin(t * 2) > 0.7 ? 1.5 : 0.3),                 // Amber SOS blink
+    t => 0.4 + 0.2 * Math.sin(t * 1.3),                       // Nightmare white entity marker
+  ];
+  atmosphericLights.forEach((al, i) => {
+    al.light.intensity = al.baseIntensity * lightPatterns[i](time);
+  });
+
+  // Core pulsate
+  coreLight.intensity = 3.0 + Math.sin(time * 2) * 1.5;
+  coreMesh.rotation.y += dt * 0.8;
+  coreMesh.material.emissiveIntensity = 5.0 + Math.sin(time * 4) * 1.5;
+
+  // ---- SHADER UNIFORMS ----
+  const exposure = 0.8 + Math.sin(time * 1.2 + player.fear * 8) * 0.3 * (0.5 + player.fear * 0.5) + 0.3;
+  colorGradePass.uniforms['uTime'].value      = time;
+  colorGradePass.uniforms['uFear'].value      = player.fear;
+  colorGradePass.uniforms['uExposure'].value  = Math.max(0.6, Math.min(1.5, exposure));
+  colorGradePass.uniforms['uSanity'].value    = player.sanity / 100;
+
+  // Bloom escalates with fear
+  bloomPass.strength = 0.55 + player.fear * 0.8 + (player.sanity < 10 ? 1.5 : 0);
+  bloomPass.threshold = Math.max(0.3, 0.72 - player.fear * 0.35);
+
+  // ---- SANITY WALL DISTORTION ----
+  if (player.sanity < 30) {
+    const shiftAmt = (1 - player.sanity / 30) * 0.06;
+    // Animate a few wall-like meshes slightly
+    scene.children.forEach(child => {
+      if (child.material === wallMat && Math.random() < 0.005) {
+        child.position.x += (Math.random() - 0.5) * shiftAmt;
+        child.position.z += (Math.random() - 0.5) * shiftAmt;
+      }
+    });
+  }
+
+  // ---- HUD UPDATE ----
+  const sanPct = player.sanity / 100;
+  hudSanityBar.style.width = (player.sanity).toFixed(0) + '%';
+  if (sanPct > 0.6)       hudSanityBar.style.background = '#00ff88';
+  else if (sanPct > 0.35) hudSanityBar.style.background = '#ffcc00';
+  else if (sanPct > 0.15) hudSanityBar.style.background = '#ff4400';
+  else                    hudSanityBar.style.background = `hsl(${Math.random()*360},100%,60%)`;
+
+  hudSanityVal.textContent = Math.floor(player.sanity);
+
+  const cellC = Math.floor(player.pos.x / CELL_SIZE);
+  const cellR = Math.floor(player.pos.z / CELL_SIZE);
+  hudCoordX.textContent    = 'X: ' + player.pos.x.toFixed(2);
+  hudCoordZ.textContent    = 'Z: ' + player.pos.z.toFixed(2);
+  hudCoordCell.textContent = `CELL: ${cellC},${cellR}`;
+
+  // Fear circle
+  const fearScale = 0.2 + player.fear * 1.8;
+  hudFearCircle.style.transform = `scale(${fearScale})`;
+  hudFearCircle.style.opacity   = player.fear > 0.05 ? (0.4 + player.fear * 0.6).toFixed(2) : '0';
+
+  // Glitch overlay
+  hudGlitch.style.opacity = player.sanity < 20 ? ((1 - player.sanity / 20) * 0.5).toFixed(2) : '0';
+
+  // Compass
+  const compassDeg = Math.round(((-player.yaw * 180 / Math.PI) % 360 + 360) % 360);
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  const dirIdx = Math.round(compassDeg / 45) % 8;
+  hudCompass.textContent = dirs[dirIdx] + ' ' + compassDeg + '°';
+
+  // ---- WIN CONDITION ----
+  if (player.pos.distanceTo(coreMesh.position) < 2.5) {
+    triggerWin();
+    return;
+  }
+
+  // ---- RENDER ----
+  composer.render();
+}
+
+// ============================================================
+//  WIN / LOSE
+// ============================================================
+function triggerWin() {
+  player.won = true;
+  const endScreen = document.getElementById('end-screen');
+  endScreen.style.display = 'flex';
+  const mins = Math.floor(elapsedTime / 60);
+  const secs = Math.floor(elapsedTime % 60);
+  const avgFear   = ((totalFear / elapsedTime) * 100).toFixed(0);
+  const evaded    = entities.length;
+  document.getElementById('end-title').textContent = 'YOU ESCAPED';
+  document.getElementById('end-title').style.color = '#00ff88';
+  document.getElementById('end-title').style.textShadow = '0 0 40px #00ff88';
+  document.getElementById('end-stats').innerHTML = `
+    TIME: ${mins}m ${secs}s<br>
+    FEAR EXPERIENCED: ${avgFear}%<br>
+    ENTITIES EVADED: ${evaded}<br>
+    NIGHTMARE LEVEL REACHED: ${nightmareLevel}<br>
+    FINAL SANITY: ${Math.floor(player.sanity)}
+  `;
+  document.exitPointerLock?.();
+}
+
+// ============================================================
+//  INITIAL RENDER (static frame before game starts)
+// ============================================================
+renderer.render(scene, camera);
+
+</script>
+</body>
+</html>

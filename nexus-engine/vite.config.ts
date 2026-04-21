@@ -29,6 +29,11 @@ export default defineConfig({
       '/api': { target: 'http://localhost:3001', changeOrigin: true },
       '/ws': { target: 'ws://localhost:3001', ws: true },
     },
+    headers: {
+      // Allow embedding from the marketplace (localhost:3002)
+      'X-Frame-Options': 'ALLOWALL',
+      'Content-Security-Policy': "frame-ancestors 'self' http://localhost:3002 http://localhost:5173",
+    },
   },
   optimizeDeps: {
     include: ['three', 'cannon-es'],

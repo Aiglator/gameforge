@@ -24,6 +24,6 @@ const props = withDefaults(defineProps<{
 }>(), { loading: false, columns: 4 })
 
 const gridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(auto-fill, minmax(${Math.floor(240 / props.columns * props.columns)}px, 1fr))`,
+  gridTemplateColumns: `repeat(auto-fill, minmax(220px, 1fr))`,
 }))
 </script>

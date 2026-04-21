@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "7788", "--directory", "C:/xampp/htdocs/eemi/js/mockups"],
       "port": 7788
+    },
+    {
+      "name": "games",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "7789", "--directory", "C:/xampp/htdocs/eemi/js/marketplace-api/uploads/games"],
+      "port": 7789
     }
   ]
 }

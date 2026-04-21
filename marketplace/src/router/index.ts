@@ -13,6 +13,7 @@ const router = createRouter({
     { path: '/profile',   name: 'Profile',   component: () => import('../views/Profile.vue'),  meta: { requiresAuth: true } },
     { path: '/admin',     name: 'Admin',     component: () => import('../views/Admin.vue'),    meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/users', name: 'AdminUsers', component: () => import('../views/Admin.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/engine',   name: 'Engine',    component: () => import('../views/Engine.vue'),  meta: { fullscreen: true } },
   ],
 })
 
