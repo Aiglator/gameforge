@@ -121,12 +121,34 @@
           <div class="flex-none border-b border-surface-highest">
             <div class="flex items-center justify-between px-3 py-1">
               <span class="text-[8px] text-slate-600 uppercase tracking-widest">Spritesheet · Clic = ajouter frame</span>
-              <span class="text-[8px] font-mono text-slate-700">{{ sheetCols }}×{{ sheetRows }}</span>
+              <div class="flex items-center space-x-1">
+                <!-- Sheet cols/rows inline editors -->
+                <template v-if="spriteTexUrl">
+                  <input type="number" min="1" max="32" :value="sheetCols"
+                    @change="e => updateSheetDims('sheetCols', parseInt((e.target as HTMLInputElement).value))"
+                    class="bg-surface-highest text-[8px] font-mono text-on-surface w-7 text-center border-none focus:outline-none px-0.5 py-0.5" title="Colonnes" />
+                  <span class="text-slate-700 text-[8px]">×</span>
+                  <input type="number" min="1" max="32" :value="sheetRows"
+                    @change="e => updateSheetDims('sheetRows', parseInt((e.target as HTMLInputElement).value))"
+                    class="bg-surface-highest text-[8px] font-mono text-on-surface w-7 text-center border-none focus:outline-none px-0.5 py-0.5" title="Lignes" />
+                </template>
+                <!-- Browse button always visible -->
+                <button @click="browseSpritesheet"
+                  class="flex items-center space-x-0.5 px-1 py-0.5 text-[8px] text-secondary hover:text-secondary/70 transition-colors"
+                  title="Charger un spritesheet">
+                  <span class="material-symbols-outlined text-xs">image_search</span>
+                </button>
+              </div>
             </div>
             <!-- Grid of cells (max height 130px, scrollable) -->
             <div class="overflow-auto px-3 pb-2" style="max-height:130px">
-              <div v-if="!spriteTexUrl" class="text-[9px] text-slate-700 italic py-2">
-                Configure une texture dans le composant Sprite d'abord.
+              <div v-if="!spriteTexUrl" class="py-2 space-y-1.5">
+                <div class="text-[9px] text-slate-600 italic">Aucune texture — sélectionne ton spritesheet :</div>
+                <button @click="browseSpritesheet"
+                  class="w-full flex items-center justify-center space-x-1.5 py-2 bg-secondary/10 text-secondary border border-secondary/30 text-[9px] uppercase tracking-widest hover:bg-secondary/20 transition-colors">
+                  <span class="material-symbols-outlined text-sm">image_search</span>
+                  <span>Choisir Spritesheet</span>
+                </button>
               </div>
               <div v-else
                 :style="{ display: 'grid', gridTemplateColumns: `repeat(${sheetCols}, ${cellSize}px)`, gap: '1px' }">
@@ -453,6 +475,29 @@ function updateTransition(i: number, key: string, val: unknown) {
   if (!entity.value) return
   const newTrans = transitions.value.map((t, idx) => idx === i ? { ...t, [key]: val } : t)
   store.engine?.updateEntityComponent(entity.value.id, 'animator', { transitions: newTrans })
+  store.bumpEntityVersion()
+}
+
+// ── Spritesheet browser ───────────────────────────────────────────
+function browseSpritesheet() {
+  if (!entity.value) return
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file || !entity.value) return
+    const url = URL.createObjectURL(file)
+    store.engine?.updateEntityComponent(entity.value.id, 'sprite', { textureUrl: url })
+    store.bumpEntityVersion()
+    store.addConsoleMessage('info', `Spritesheet chargé : ${file.name}`)
+  }
+  input.click()
+}
+
+function updateSheetDims(key: 'sheetCols' | 'sheetRows', val: number) {
+  if (!entity.value || isNaN(val) || val < 1) return
+  store.engine?.updateEntityComponent(entity.value.id, 'sprite', { [key]: val })
   store.bumpEntityVersion()
 }
 

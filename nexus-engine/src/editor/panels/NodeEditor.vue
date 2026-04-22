@@ -102,6 +102,13 @@
               class="bg-surface-highest text-[9px] text-on-surface px-1 py-0.5 w-2/3 border-none focus:ring-0 focus:outline-none font-mono"
             />
           </div>
+          <button
+            v-if="isGravityNode(node)"
+            @click="applyGravityNode(node)"
+            class="w-full mt-1 bg-cyan-500/10 text-cyan-300 text-[9px] font-bold py-1 uppercase tracking-widest hover:bg-cyan-500/20 transition-colors"
+          >
+            Apply Gravity Block
+          </button>
         </div>
       </div>
     </div>
@@ -150,8 +157,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useEditorStore } from '../stores/editorStore'
 
 const NODE_W = 200
+const store = useEditorStore()
 
 interface Port { id: string; label: string; type: string }
 interface Prop { key: string; value: string }
@@ -250,6 +259,18 @@ const NODE_TEMPLATES: Omit<NodeDef, 'id' | 'x' | 'y'>[] = [
     outputs: [{ id: 'exec', label: 'Exec', type: 'exec' }],
     props: [{ key: 'message', value: 'Hello' }],
   },
+  {
+    label: 'World Gravity', category: 'Physics', icon: 'south', color: '#38bdf8',
+    inputs: [{ id: 'exec', label: 'Exec', type: 'exec' }],
+    outputs: [{ id: 'exec', label: 'Exec', type: 'exec' }],
+    props: [{ key: 'x', value: '0' }, { key: 'y', value: '-18' }, { key: 'z', value: '0' }],
+  },
+  {
+    label: 'Entity Gravity', category: 'Physics', icon: 'vertical_align_bottom', color: '#22c55e',
+    inputs: [{ id: 'exec', label: 'Exec', type: 'exec' }, { id: 'target', label: 'Target', type: 'entity' }],
+    outputs: [{ id: 'exec', label: 'Exec', type: 'exec' }],
+    props: [{ key: 'target', value: 'selected' }, { key: 'x', value: '0' }, { key: 'y', value: '-18' }, { key: 'z', value: '0' }],
+  },
 ]
 
 let _nodeIdCtr = 100
@@ -270,10 +291,49 @@ function spawnNode(tpl: Omit<NodeDef, 'id' | 'x' | 'y'>) {
   })
 }
 
+function isGravityNode(node: NodeDef) {
+  return node.label === 'World Gravity' || node.label === 'Entity Gravity'
+}
+
+function propValue(node: NodeDef, key: string, fallback = '') {
+  return node.props?.find(p => p.key === key)?.value ?? fallback
+}
+
+function propNumber(node: NodeDef, key: string, fallback: number) {
+  const value = Number(propValue(node, key, String(fallback)))
+  return Number.isFinite(value) ? value : fallback
+}
+
+function applyGravityNode(node: NodeDef) {
+  const eng = store.engine
+  if (!eng) return
+  const gravity = {
+    x: propNumber(node, 'x', 0),
+    y: propNumber(node, 'y', -18),
+    z: propNumber(node, 'z', 0),
+  }
+
+  if (node.label === 'World Gravity') {
+    eng.setGravity(gravity)
+    store.addConsoleMessage('info', `World gravity set to (${gravity.x}, ${gravity.y}, ${gravity.z})`)
+    return
+  }
+
+  const target = propValue(node, 'target', 'selected')
+  const entityId = target === 'selected' ? store.selectedEntityId : target
+  if (!entityId) {
+    store.addConsoleMessage('warn', 'Entity Gravity block needs a selected entity')
+    return
+  }
+  eng.setEntityGravity(entityId, gravity)
+  store.bumpEntityVersion()
+  store.addConsoleMessage('info', `Entity gravity set to (${gravity.x}, ${gravity.y}, ${gravity.z})`)
+}
+
 // ── Port color by type ────────────────────────────────────────────
 function portColor(type: string) {
   const map: Record<string, string> = {
-    exec: '#f56565', float: '#b794f4', string: '#68d391', bool: '#63b3ed', any: '#a0aec0', int: '#f6ad55',
+    exec: '#f56565', float: '#b794f4', string: '#68d391', bool: '#63b3ed', any: '#a0aec0', int: '#f6ad55', entity: '#22c55e',
   }
   return map[type] ?? '#718096'
 }

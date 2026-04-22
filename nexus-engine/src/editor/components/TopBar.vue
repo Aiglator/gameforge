@@ -207,12 +207,13 @@ function handleAction(action: string) {
       }
       break
     case 'resetCamera':
-      if (eng) {
-        eng.camera.position.set(8, 6, 8)
-        eng.camera.lookAt(0, 0, 0)
-        eng.orbitControls.target.set(0, 0, 0)
-        eng.orbitControls.update()
-      }
+      eng?.resetCamera()
+      break
+    case 'toggleGrid':
+      // logic for toggleGrid if available in engine
+      break
+    case 'wireframe':
+      // logic for wireframe
       break
   }
 }
@@ -220,10 +221,15 @@ function handleAction(action: string) {
 function handlePlay() {
   const eng = store.engine
   if (!eng || store.isPlaying) return
-  const errors = eng.play()
-  store.setPlaying(true)
-  errors.forEach(e => store.addConsoleMessage('error', e))
-  if (!errors.length) store.addConsoleMessage('info', '▶ Play mode started')
+  try {
+    const errors = eng.play()
+    store.setPlaying(true)
+    errors.forEach(e => store.addConsoleMessage('error', e))
+    if (!errors.length) store.addConsoleMessage('info', '▶ Play mode started')
+  } catch (err) {
+    store.addConsoleMessage('error', `Play Mode Crash: ${err}`)
+    console.error(err)
+  }
 }
 
 function handleStop() {

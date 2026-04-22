@@ -180,6 +180,90 @@
 
     <div class="mx-3 border-t border-surface-highest my-2" />
 
+    <!-- Section: Viewport Camera -->
+    <div class="px-3 pb-1">
+      <div class="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-2">Viewport Camera</div>
+
+      <!-- Perspective / Orthographic toggle -->
+      <div class="flex mb-2 space-x-1">
+        <button
+          @click="store.setCamProjection('perspective')"
+          class="flex-1 py-1 text-[9px] uppercase tracking-widest transition-colors"
+          :class="store.cameraProjection === 'perspective'
+            ? 'bg-primary/20 text-primary ring-1 ring-inset ring-primary/40'
+            : 'bg-surface-high text-slate-500 hover:text-slate-300'"
+        >Persp</button>
+        <button
+          @click="store.setCamProjection('orthographic')"
+          class="flex-1 py-1 text-[9px] uppercase tracking-widest transition-colors"
+          :class="store.cameraProjection === 'orthographic'
+            ? 'bg-secondary/20 text-secondary ring-1 ring-inset ring-secondary/40'
+            : 'bg-surface-high text-slate-500 hover:text-slate-300'"
+        >Ortho</button>
+      </div>
+
+      <!-- FOV (perspective only) -->
+      <div v-if="store.cameraProjection === 'perspective'" class="space-y-0.5 mb-2">
+        <div class="flex justify-between">
+          <span class="text-[9px] text-slate-500 uppercase">FOV</span>
+          <span class="text-[9px] font-mono text-slate-400">{{ store.cameraFov }}°</span>
+        </div>
+        <input
+          type="range" min="10" max="120" step="1"
+          :value="store.cameraFov"
+          @input="(e) => store.setCamFov(parseInt((e.target as HTMLInputElement).value))"
+          class="w-full h-1 appearance-none bg-surface-highest cursor-pointer accent-primary"
+        />
+      </div>
+
+      <!-- Near clip -->
+      <div class="flex items-center space-x-2 mb-1.5">
+        <span class="text-[9px] text-slate-500 w-10">Near</span>
+        <input
+          type="number" min="0.01" max="10" step="0.01"
+          :value="store.cameraNear"
+          @change="(e) => store.setCamClip(parseFloat((e.target as HTMLInputElement).value), store.cameraFar)"
+          class="flex-1 bg-surface-high border-none text-[10px] text-on-surface px-1.5 py-0.5 focus:ring-0 focus:outline-none"
+        />
+      </div>
+
+      <!-- Far clip -->
+      <div class="flex items-center space-x-2 mb-2">
+        <span class="text-[9px] text-slate-500 w-10">Far</span>
+        <input
+          type="number" min="100" max="50000" step="100"
+          :value="store.cameraFar"
+          @change="(e) => store.setCamClip(store.cameraNear, parseFloat((e.target as HTMLInputElement).value))"
+          class="flex-1 bg-surface-high border-none text-[10px] text-on-surface px-1.5 py-0.5 focus:ring-0 focus:outline-none"
+        />
+      </div>
+
+      <!-- Orbit Speed -->
+      <div class="space-y-0.5 mb-2">
+        <div class="flex justify-between">
+          <span class="text-[9px] text-slate-500 uppercase">Orbit Speed</span>
+          <span class="text-[9px] font-mono text-slate-400">{{ store.cameraSpeed.toFixed(2) }}</span>
+        </div>
+        <input
+          type="range" min="0.01" max="0.5" step="0.01"
+          :value="store.cameraSpeed"
+          @input="(e) => store.setCamSpeed(parseFloat((e.target as HTMLInputElement).value))"
+          class="w-full h-1 appearance-none bg-surface-highest cursor-pointer accent-accent"
+        />
+      </div>
+
+      <!-- Reset camera -->
+      <button
+        @click="store.resetCamera()"
+        class="w-full flex items-center justify-center space-x-1.5 px-2 py-1.5 bg-surface-high hover:bg-surface-highest text-slate-400 hover:text-slate-200 transition-colors text-[9px] uppercase tracking-widest"
+      >
+        <span class="material-symbols-outlined text-sm">restart_alt</span>
+        <span>Reset Camera</span>
+      </button>
+    </div>
+
+    <div class="mx-3 border-t border-surface-highest my-2" />
+
     <!-- Section: Post FX -->
     <div class="px-3 pb-3">
       <div class="flex items-center justify-between mb-2">
@@ -227,6 +311,20 @@ function spawnSprite(mode: 'billboard' | 'plane') {
   store.selectEntity(e.id)
   store.bumpEntityVersion()
   store.addConsoleMessage('info', `Spawned ${label}`)
+
+  // Open file picker immediately to let the user choose a texture
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    eng.updateEntityComponent(e.id, 'sprite', { textureUrl: url })
+    store.bumpEntityVersion()
+    store.addConsoleMessage('info', `Sprite texture: ${file.name}`)
+  }
+  input.click()
 }
 
 function spawnTilemap() {

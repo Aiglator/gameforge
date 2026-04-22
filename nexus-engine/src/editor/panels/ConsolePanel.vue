@@ -1,5 +1,19 @@
 <template>
   <div class="flex flex-col h-full bg-surface-lowest font-mono">
+    <!-- Header/Toolbar -->
+    <div class="flex items-center justify-between px-2 h-7 border-b border-surface-highest bg-surface-container-low flex-none">
+      <div class="flex items-center space-x-2">
+        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Console Output</span>
+      </div>
+      <button
+        @click="store.clearConsole"
+        class="text-[9px] font-bold text-slate-500 hover:text-error uppercase tracking-widest flex items-center space-x-1 px-2 py-1 transition-colors"
+      >
+        <span class="material-symbols-outlined text-sm">block</span>
+        <span>Clear</span>
+      </button>
+    </div>
+
     <!-- Messages -->
     <div ref="scrollEl" class="flex-1 overflow-y-auto no-scrollbar px-2 py-1 space-y-0.5">
       <div v-if="store.consoleMessages.length === 0" class="text-[10px] text-slate-600 py-4 text-center">
@@ -21,7 +35,16 @@
         <span class="text-[9px] text-slate-600 flex-none pt-[1px]">{{ formatTime(msg.timestamp) }}</span>
 
         <!-- Text -->
-        <pre class="text-[10px] whitespace-pre-wrap break-all flex-1 leading-relaxed" :class="typeColor[msg.type]">{{ msg.text }}</pre>
+        <pre class="text-[10px] whitespace-pre-wrap break-all flex-1 leading-relaxed select-text" :class="typeColor[msg.type]">{{ msg.text }}</pre>
+
+        <!-- Copy button -->
+        <button
+          @click="copyMessage(msg.text)"
+          class="opacity-0 group-hover:opacity-100 p-1 hover:bg-surface-high text-slate-500 hover:text-secondary transition-all"
+          title="Copy message"
+        >
+          <span class="material-symbols-outlined text-[14px]">content_copy</span>
+        </button>
       </div>
     </div>
 
@@ -69,6 +92,15 @@ const rowBg: Record<ConsoleMessage['type'], string> = {
 function formatTime(ts: number) {
   const d = new Date(ts)
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`
+}
+
+async function copyMessage(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    // Optional: show a small toast or temporary icon change?
+  } catch (err) {
+    console.error('Failed to copy text: ', err)
+  }
 }
 
 function execInput() {

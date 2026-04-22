@@ -27,6 +27,12 @@ body {
   font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 20;
 }
 
+/* Selection */
+.select-text {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 /* No-scrollbar utility */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
