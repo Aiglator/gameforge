@@ -166,14 +166,32 @@ router.get('/games', requireAdmin, async (req, res) => {
   }
 })
 
-// ── PATCH /api/admin/games/:id — modérer un jeu ──────────────────
+// ── PATCH /api/admin/games/:id — modérer/éditer un jeu ──────────
 router.patch('/games/:id', requireAdmin, async (req, res) => {
   try {
     const game = await Game.findByPk(req.params.id)
     if (!game) return res.status(404).json({ message: 'Jeu introuvable' })
-    const { status } = req.body
-    if (status) await game.update({ status })
+    const { status, name, description, category, price } = req.body
+    const updates = {}
+    if (status !== undefined) updates.status = status
+    if (name !== undefined) updates.name = name
+    if (description !== undefined) updates.description = description
+    if (category !== undefined) updates.category = category
+    if (price !== undefined) updates.price = price
+    await game.update(updates)
     res.json({ game })
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
+// ── DELETE /api/admin/games/:id — supprimer un jeu ───────────────
+router.delete('/games/:id', requireAdmin, async (req, res) => {
+  try {
+    const game = await Game.findByPk(req.params.id)
+    if (!game) return res.status(404).json({ message: 'Jeu introuvable' })
+    await game.destroy()
+    res.json({ message: 'Jeu supprimé' })
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur' })
   }

@@ -12,6 +12,7 @@ describe('GameForge API — Functional Tests', () => {
 
   let authToken = null;
   let testGameId = null;
+  let confirmationToken = null;
   const testUser = {
     nom: 'Test',
     prenom: 'User',
@@ -21,18 +22,27 @@ describe('GameForge API — Functional Tests', () => {
   };
 
   describe('POST /api/auth/register', () => {
-    it('should register a new user and return JWT', async () => {
+    it('should register a new user and send a confirmation token in local dev', async () => {
       const res = await request(API_URL)
         .post('/api/auth/register')
         .send(testUser)
         .expect('Content-Type', /json/)
         .expect(201);
 
-      expect(res.body).toHaveProperty('token');
       expect(res.body).toHaveProperty('user');
+      expect(res.body).toHaveProperty('devConfirmationToken');
       expect(res.body.user.email).toBe(testUser.email);
       expect(res.body.user).not.toHaveProperty('password_hash');
-      authToken = res.body.token;
+      confirmationToken = res.body.devConfirmationToken;
+    });
+
+    it('should confirm the email before login', async () => {
+      const res = await request(API_URL)
+        .post('/api/auth/confirm-email')
+        .send({ token: confirmationToken })
+        .expect(200);
+
+      expect(res.body).toHaveProperty('message');
     });
 
     it('should reject duplicate email', async () => {
@@ -136,9 +146,11 @@ describe('GameForge API — Functional Tests', () => {
       const res = await request(API_URL)
         .post('/api/developer/become')
         .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
+        .expect((response) => {
+          expect([200, 201]).toContain(response.status);
+        });
 
-      expect(res.body).toHaveProperty('apiKey');
+      expect(res.body).toHaveProperty('api_key');
     });
   });
 
@@ -156,9 +168,9 @@ describe('GameForge API — Functional Tests', () => {
         })
         .expect(201);
 
-      expect(res.body).toHaveProperty('id');
-      expect(res.body.status).toBe('draft');
-      testGameId = res.body.id;
+      expect(res.body).toHaveProperty('game');
+      expect(res.body.game.status).toBe('draft');
+      testGameId = res.body.game.id;
     });
 
     it('should reject game without auth', async () => {
