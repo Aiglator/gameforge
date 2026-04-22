@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = 3001
 const PROJECTS_DIR = join(__dirname, '..', 'projects')
+const MARKETPLACE_API_URL = (process.env.MARKETPLACE_API_URL || 'http://localhost:3004/api').replace(/\/$/, '')
 
 if (!existsSync(PROJECTS_DIR)) mkdirSync(PROJECTS_DIR, { recursive: true })
 
@@ -24,13 +25,37 @@ const app = express()
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'] }))
 app.use(express.json({ limit: '10mb' }))
 
+async function verifyMarketplaceToken(token) {
+  if (!token) return null
+  try {
+    const response = await fetch(`${MARKETPLACE_API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    return data.user || null
+  } catch (err) {
+    console.warn('[Auth] Marketplace token verification failed:', err.message)
+    return null
+  }
+}
+
+async function requireMarketplaceAuth(req, res, next) {
+  const auth = req.headers.authorization
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : ''
+  const user = await verifyMarketplaceToken(token)
+  if (!user) return res.status(401).json({ error: 'Unauthorized' })
+  req.user = user
+  next()
+}
+
 // ── HTTP Routes ──────────────────────────────────────────────────
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', version: '1.0.0', timestamp: Date.now() })
 })
 
-app.get('/api/scenes', (_req, res) => {
+app.get('/api/scenes', requireMarketplaceAuth, (_req, res) => {
   try {
     const files = readdirSync(PROJECTS_DIR).filter(f => f.endsWith('.json'))
     res.json(files.map(f => ({ name: f.replace('.json', ''), file: f })))
@@ -39,7 +64,7 @@ app.get('/api/scenes', (_req, res) => {
   }
 })
 
-app.post('/api/scenes/:name', (req, res) => {
+app.post('/api/scenes/:name', requireMarketplaceAuth, (req, res) => {
   try {
     const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, '_')
     const path = join(PROJECTS_DIR, `${name}.json`)
@@ -51,7 +76,7 @@ app.post('/api/scenes/:name', (req, res) => {
   }
 })
 
-app.get('/api/scenes/:name', (req, res) => {
+app.get('/api/scenes/:name', requireMarketplaceAuth, (req, res) => {
   try {
     const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, '_')
     const path = join(PROJECTS_DIR, `${name}.json`)
@@ -62,7 +87,7 @@ app.get('/api/scenes/:name', (req, res) => {
   }
 })
 
-app.delete('/api/scenes/:name', (req, res) => {
+app.delete('/api/scenes/:name', requireMarketplaceAuth, (req, res) => {
   try {
     const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, '_')
     const path = join(PROJECTS_DIR, `${name}.json`)
@@ -74,7 +99,7 @@ app.delete('/api/scenes/:name', (req, res) => {
 })
 
 // AI command endpoint (broadcasts to all WS clients)
-app.post('/api/ai/command', (req, res) => {
+app.post('/api/ai/command', requireMarketplaceAuth, (req, res) => {
   const { prompt, context } = req.body ?? {}
   if (!prompt) return res.status(400).json({ error: 'Missing prompt' })
   const commands = parseAIPrompt(prompt, context)
@@ -96,9 +121,17 @@ function broadcast(msg) {
   }
 }
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', async (ws, req) => {
+  const url = new URL(req.url || '/ws', `http://${req.headers.host || 'localhost'}`)
+  const user = await verifyMarketplaceToken(url.searchParams.get('token'))
+  if (!user) {
+    ws.close(1008, 'Unauthorized')
+    return
+  }
+
   clients.add(ws)
-  console.log(`[WS] Client connected (${clients.size} total) from ${req.socket.remoteAddress}`)
+  ws.user = user
+  console.log(`[WS] Client connected (${clients.size} total) as ${user.email} from ${req.socket.remoteAddress}`)
   ws.send(JSON.stringify({ type: 'welcome', payload: { version: '1.0.0', ts: Date.now() } }))
 
   ws.on('message', (raw) => {
