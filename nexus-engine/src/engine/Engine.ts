@@ -29,10 +29,12 @@ export class Engine {
   renderer: THREE.WebGLRenderer
   orbitControls: OrbitControls
   transformControls: TransformControls
+  private _activeCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera
 
   // Physics
   physicsWorld: CANNON.World
   private _physicsBodies: Map<string, CANNON.Body> = new Map()
+  private _worldGravity = new CANNON.Vec3(0, -18, 0)
 
   // Entities
   private _entities: Map<string, Entity> = new Map()
@@ -42,6 +44,7 @@ export class Engine {
   private _running = false
   private _frameId: number | null = null
   private _lastTime = 0
+  private _lastFrameTime = 0
   private _frameCount = 0
   private _fpsTime = performance.now()
 
@@ -85,9 +88,11 @@ export class Engine {
     this.camera.position.set(8, 6, 8)
     this.camera.lookAt(0, 0, 0)
 
-    this.orthoCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 1000)
-    this.orthoCamera.position.set(0, 10, 0)
+    this.orthoCamera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.01, 2000)
+    this.orthoCamera.position.set(0, 0, 20)
     this.orthoCamera.lookAt(0, 0, 0)
+    this.orthoCamera.up.set(0, 1, 0)
+    this._activeCamera = this.camera
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -101,7 +106,13 @@ export class Engine {
     this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement)
     this.orbitControls.enableDamping = true
     this.orbitControls.dampingFactor = 0.08
-    this.orbitControls.maxPolarAngle = Math.PI * 0.85
+    this.orbitControls.screenSpacePanning = true   // right-drag pans in screen space (natural feel)
+    this.orbitControls.panSpeed = 1.2
+    this.orbitControls.rotateSpeed = 0.7
+    this.orbitControls.zoomSpeed = 1.2
+    // No polar angle restriction — user can orbit freely above and below
+    this.orbitControls.minPolarAngle = 0
+    this.orbitControls.maxPolarAngle = Math.PI
 
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement)
     this.transformControls.setSize(0.75)
@@ -132,15 +143,15 @@ export class Engine {
     this.scene.add(sun)
 
     // Grid
-    const grid = new THREE.GridHelper(100, 100, '#1a2540', '#111a30')
+    const grid = new THREE.GridHelper(100, 100, '#2d3748', '#1a202c')
     this.scene.add(grid)
 
     // Axes
-    const axes = new THREE.AxesHelper(5)
+    const axes = new THREE.AxesHelper(10)
     this.scene.add(axes)
 
     // Physics
-    this.physicsWorld = new CANNON.World({ gravity: new CANNON.Vec3(0, -18, 0) })
+    this.physicsWorld = new CANNON.World({ gravity: new CANNON.Vec3(0, 0, 0) })
     this.physicsWorld.broadphase = new CANNON.SAPBroadphase(this.physicsWorld)
 
     // Ground plane for physics
@@ -196,11 +207,7 @@ export class Engine {
       this.scene.remove(entity.object3D)
     }
 
-    const body = this._physicsBodies.get(id)
-    if (body) {
-      this.physicsWorld.removeBody(body)
-      this._physicsBodies.delete(id)
-    }
+    this._removePhysicsBody(id)
 
     this._entities.delete(id)
     if (this._selectedId === id) this._selectedId = null
@@ -247,6 +254,7 @@ export class Engine {
         mass: 1,
         halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
         useGravity: true,
+        gravity: { x: 0, y: -18, z: 0 },
       }))
       entity.position.y = 2
     } else if (type === 'plane') {
@@ -260,6 +268,7 @@ export class Engine {
         mass: 0,
         halfExtents: { x: 10, y: 0.2, z: 10 },
         useGravity: false,
+        gravity: { x: 0, y: 0, z: 0 },
       }))
       entity.position.y = -0.2
     } else if (type === 'light') {
@@ -312,18 +321,52 @@ export class Engine {
 
   play(): string[] {
     if (this._running) return []
+    
     // Save scene state for restoration
-    this._savedScene = JSON.stringify(this.saveScene())
+    try {
+      this._savedScene = JSON.stringify(this.saveScene())
+    } catch (err) {
+      console.error("Failed to save scene state:", err)
+      return [`Serialization Error: ${err}`]
+    }
+
     // Compile scripts
     const errors = this._compileScripts()
+    if (errors.length > 0) {
+      this._savedScene = null
+      return errors
+    }
+
+    // Chercher une caméra dans la scène
+    const sceneCameraEntity = [...this._entities.values()].find(e => e.hasComponent('camera'))
+    if (sceneCameraEntity && sceneCameraEntity.object3D) {
+      // On récupère la vraie caméra THREE.js cachée dans l'entité
+      const cam = (sceneCameraEntity.object3D as any).isCamera 
+        ? sceneCameraEntity.object3D as THREE.PerspectiveCamera | THREE.OrthographicCamera
+        : sceneCameraEntity.object3D.getObjectByProperty('isCamera', true) as THREE.PerspectiveCamera | THREE.OrthographicCamera;
+      
+      if (cam) {
+        this._activeCamera = cam
+        this.postProcessing?.setCamera(cam)
+      }
+    }
+
     this._startScripts()
     this._running = true
-    this._lastTime = performance.now()
+    const now = performance.now()
+    this._lastTime = now
+    this._lastFrameTime = now
+    
+    this.postProcessing?.setCamera(this._activeCamera)
+    
+    // Initial render & loop start
+    this._render()
     this._frameId = requestAnimationFrame((t) => this._gameLoop(t))
+    
     this.orbitControls.enabled = false
     this.transformControls.detach()
     this._emit('playStateChanged', true)
-    return errors
+    return []
   }
 
   stop(): void {
@@ -331,7 +374,6 @@ export class Engine {
     this._running = false
     if (this._frameId) cancelAnimationFrame(this._frameId)
     this._compiledScripts.clear()
-    this.orbitControls.enabled = true
 
     // Restore scene
     if (this._savedScene) {
@@ -345,6 +387,10 @@ export class Engine {
       body.velocity.setZero()
       body.angularVelocity.setZero()
     }
+
+    // Re-enable controls AFTER scene is restored so nothing in _loadSceneSync can undo it
+    this.transformControls.detach()
+    this.orbitControls.enabled = true
 
     this._emit('playStateChanged', false)
   }
@@ -394,17 +440,76 @@ export class Engine {
 
   setCameraMode(mode: 'perspective' | 'orthographic'): void {
     this.mode = mode === 'orthographic' ? '2d' : '3d'
-    const cam = mode === 'orthographic' ? this.orthoCamera : this.camera
-    this.orbitControls.object = cam
-    this.transformControls.camera = cam
+
+    if (mode === 'orthographic') {
+      // Reset ortho camera to face the XY plane (2D front view) ─────────
+      this.orthoCamera.position.set(0, 0, 20)
+      this.orthoCamera.lookAt(0, 0, 0)
+      this.orthoCamera.up.set(0, 1, 0)
+      this.orthoCamera.updateProjectionMatrix()
+      this._activeCamera = this.orthoCamera
+
+      this.orbitControls.object = this.orthoCamera
+      this.orbitControls.target.set(0, 0, 0)
+      this.orbitControls.enableRotate = false        // 2D: no 3D orbit
+      this.orbitControls.screenSpacePanning = true   // pan in XY plane
+      this.transformControls.camera = this.orthoCamera
+    } else {
+      this._activeCamera = this.camera
+      this.orbitControls.object = this.camera
+      this.orbitControls.enableRotate = true
+      this.orbitControls.screenSpacePanning = true
+      this.transformControls.camera = this.camera
+    }
+
+    this.postProcessing?.setCamera(this._activeCamera)
+    this.orbitControls.update()
     this._emit('modeChanged', { mode })
+  }
+
+  setCameraFov(fov: number): void {
+    this.camera.fov = Math.max(10, Math.min(120, fov))
+    this.camera.updateProjectionMatrix()
+  }
+
+  setCameraClip(near: number, far: number): void {
+    this.camera.near = near
+    this.camera.far = far
+    this.camera.updateProjectionMatrix()
+    this.orthoCamera.near = near
+    this.orthoCamera.far = far
+    this.orthoCamera.updateProjectionMatrix()
+  }
+
+  setOrbitSpeed(damping: number): void {
+    this.orbitControls.dampingFactor = damping
+  }
+
+  resetCamera(): void {
+    if (this.mode === '2d') {
+      this.orthoCamera.position.set(0, 0, 20)
+      this.orthoCamera.lookAt(0, 0, 0)
+      this.orthoCamera.up.set(0, 1, 0)
+      this.orthoCamera.updateProjectionMatrix()
+      this.orbitControls.target.set(0, 0, 0)
+      this.orbitControls.update()
+      return
+    }
+    this.camera.position.set(8, 6, 8)
+    this.camera.fov = 60
+    this.camera.near = 0.1
+    this.camera.far = 1000
+    this.camera.updateProjectionMatrix()
+    this.orbitControls.target.set(0, 0, 0)
+    this.orbitControls.screenSpacePanning = true
+    this.orbitControls.update()
   }
 
   // ─── Raycasting ────────────────────────────────────────────────
 
   raycastFromMouse(ndcX: number, ndcY: number): Entity | null {
     const raycaster = new THREE.Raycaster()
-    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera)
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this._activeCamera)
 
     const meshes: THREE.Object3D[] = []
     for (const entity of this._entities.values()) {
@@ -456,13 +561,62 @@ export class Engine {
       Object.assign(comp.data, data)
     }
     // Rebuild 3D object if visual component changed
-    if (['mesh', 'sprite', 'tilemap'].includes(componentType) && entity.object3D) {
+    if (['mesh', 'sprite', 'tilemap', 'terrain'].includes(componentType) && entity.object3D) {
+      const isSelected = this._selectedId === id
+      if (isSelected) this.transformControls.detach()
+
       this.scene.remove(entity.object3D)
       entity.object3D = this._buildObject3D(entity)
       this._syncTransform(entity)
       this.scene.add(entity.object3D)
+
+      if (isSelected && entity.object3D) {
+        this.transformControls.attach(entity.object3D)
+      }
+    }
+    if (componentType === 'physics') {
+      this._rebuildPhysicsBody(entity)
+    }
+    if (componentType === 'script') {
+      this.recompileScript(id)
     }
     this._emit('entityChanged', entity)
+  }
+
+  setGravity(gravity: Vec3): void {
+    this._worldGravity.set(
+      Number.isFinite(gravity.x) ? gravity.x : 0,
+      Number.isFinite(gravity.y) ? gravity.y : -18,
+      Number.isFinite(gravity.z) ? gravity.z : 0,
+    )
+    this.physicsWorld.gravity.set(0, 0, 0)
+    this._emit('entityChanged', null)
+  }
+
+  getGravity(): Vec3 {
+    return { x: this._worldGravity.x, y: this._worldGravity.y, z: this._worldGravity.z }
+  }
+
+  setEntityGravity(id: string, gravity: Vec3): void {
+    const entity = this._entities.get(id)
+    if (!entity) return
+    if (!entity.hasComponent('physics')) {
+      entity.addComponent(new Component('physics', {
+        isStatic: false,
+        mass: 1,
+        halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
+        useGravity: true,
+        gravity: { x: 0, y: -18, z: 0 },
+      }))
+    }
+    this.updateEntityComponent(id, 'physics', {
+      useGravity: true,
+      gravity: {
+        x: Number.isFinite(gravity.x) ? gravity.x : 0,
+        y: Number.isFinite(gravity.y) ? gravity.y : -18,
+        z: Number.isFinite(gravity.z) ? gravity.z : 0,
+      },
+    })
   }
 
   renameEntity(id: string, name: string): void {
@@ -716,10 +870,26 @@ export class Engine {
     this._physicsBodies.set(entity.id, body)
   }
 
+  private _removePhysicsBody(id: string): void {
+    const body = this._physicsBodies.get(id)
+    if (!body) return
+    this.physicsWorld.removeBody(body)
+    this._physicsBodies.delete(id)
+  }
+
+  private _rebuildPhysicsBody(entity: Entity): void {
+    this._removePhysicsBody(entity.id)
+    if (entity.hasComponent('physics')) this._addPhysicsBody(entity)
+  }
+
   /** Public wrapper so Vue panels can trigger physics body creation */
   addPhysicsToEntity(id: string): void {
     const entity = this._entities.get(id)
-    if (entity) this._addPhysicsBody(entity)
+    if (entity) this._rebuildPhysicsBody(entity)
+  }
+
+  removePhysicsFromEntity(id: string): void {
+    this._removePhysicsBody(id)
   }
 
   // ─── Skybox API ────────────────────────────────────────────────
@@ -741,7 +911,7 @@ export class Engine {
 
   enablePostProcessing(options?: Partial<PostProcessingOptions>): void {
     if (!this.postProcessing) {
-      this.postProcessing = new PostProcessing(this.renderer, this.scene, this.camera)
+      this.postProcessing = new PostProcessing(this.renderer, this.scene, this._activeCamera)
     }
     if (options) this.postProcessing.apply(options)
     // Sync size immediately
@@ -759,8 +929,22 @@ export class Engine {
     const obs = new ResizeObserver(() => {
       const w = container.clientWidth
       const h = container.clientHeight
+      if (w === 0 || h === 0) return
+
+      // Perspective camera
       this.camera.aspect = w / h
       this.camera.updateProjectionMatrix()
+
+      // Orthographic camera — maintain correct aspect ratio
+      // orthoSize controls how many world units are visible vertically
+      const orthoSize = 10
+      const aspect = w / h
+      this.orthoCamera.left   = -orthoSize * aspect
+      this.orthoCamera.right  =  orthoSize * aspect
+      this.orthoCamera.top    =  orthoSize
+      this.orthoCamera.bottom = -orthoSize
+      this.orthoCamera.updateProjectionMatrix()
+
       this.renderer.setSize(w, h)
       this.postProcessing?.setSize(w, h)
     })
@@ -770,34 +954,48 @@ export class Engine {
   // ─── Editor Loop (no physics/scripting) ────────────────────────
 
   private _editorLoop = (): void => {
-    if (this._running) return
-    this.orbitControls.update()
-
-    // Animator preview in editor mode
-    this._updateAnimators(1 / 60)
-
-    if (this.postProcessing) {
-      this.postProcessing.render()
-    } else {
-      this.renderer.render(this.scene, this.camera)
+    if (this._running) {
+      requestAnimationFrame(this._editorLoop)
+      return
     }
 
-    // Update stats
-    const info = this.renderer.info
-    this.stats.drawCalls = info.render.calls
-    this.stats.triangles = info.render.triangles
-    this.stats.entities  = this._entities.size
-
-    // FPS tracking in editor mode
     const now = performance.now()
-    this._frameCount++
-    const elapsed = (now - this._fpsTime) / 1000
-    if (elapsed >= 0.5) {
-      this.stats.fps       = Math.round(this._frameCount / elapsed)
-      this.stats.frameTime = Math.round((elapsed / this._frameCount) * 1000 * 100) / 100
-      this._frameCount = 0
-      this._fpsTime    = now
-      this._emit('statsUpdated', this.stats)
+    const elapsed = now - this._lastFrameTime
+    
+    // Cap at 60 FPS (~16.6ms)
+    if (elapsed > 16) {
+      this._lastFrameTime = now - (elapsed % 16)
+      this.orbitControls.update()
+
+      // Scripting preview in editor mode (only if scripts are compiled)
+      // Safety: Disable script updates if we are dragging the gizmo to avoid conflicts
+      if (!this.transformControls.dragging) {
+        this._updateScripts(1 / 60)
+      }
+
+      // Sync transforms for entities modified by scripts in editor
+      for (const entity of this._entities.values()) {
+        // Only sync if not being dragged by gizmo (gizmo already syncs via _syncGizmoToEntity)
+        if (this._selectedId !== entity.id || !this.transformControls.dragging) {
+          this._syncTransform(entity)
+        }
+      }
+
+      // Animator preview in editor mode
+      this._updateAnimators(1 / 60)
+
+      this._render()
+
+      // FPS tracking in editor mode
+      this._frameCount++
+      const fpsElapsed = (now - this._fpsTime) / 1000
+      if (fpsElapsed >= 0.5) {
+        this.stats.fps       = Math.round(this._frameCount / fpsElapsed)
+        this.stats.frameTime = Math.round((fpsElapsed / this._frameCount) * 1000 * 100) / 100
+        this._frameCount = 0
+        this._fpsTime    = now
+        this._emit('statsUpdated', this.stats)
+      }
     }
 
     requestAnimationFrame(this._editorLoop)
@@ -808,52 +1006,87 @@ export class Engine {
   private _gameLoop(time: number): void {
     if (!this._running) return
 
-    const dt = Math.min((time - this._lastTime) / 1000, 0.1)
-    this._lastTime = time
+    const elapsed = time - this._lastFrameTime
+    
+    // Cap at 60 FPS
+    if (elapsed > 16) {
+      this._lastFrameTime = time - (elapsed % 16)
 
-    // FPS
-    this._frameCount++
-    this._fpsTime += dt
-    if (this._fpsTime >= 0.5) {
-      this.stats.fps = Math.round(this._frameCount / this._fpsTime)
-      this.stats.frameTime = Math.round((this._fpsTime / this._frameCount) * 1000 * 100) / 100
-      this._frameCount = 0
-      this._fpsTime = 0
-      this._emit('fps', this.stats.fps)
+      const dt = Math.min((time - this._lastTime) / 1000, 0.1)
+      this._lastTime = time
+
+      // FPS
+      this._frameCount++
+      this._fpsTime += dt
+      if (this._fpsTime >= 0.5) {
+        this.stats.fps = Math.round(this._frameCount / this._fpsTime)
+        this.stats.frameTime = Math.round((this._fpsTime / this._frameCount) * 1000 * 100) / 100
+        this._frameCount = 0
+        this._fpsTime = 0
+        this._emit('fps', this.stats.fps)
+      }
+
+      // Scripting
+      this._updateScripts(dt)
+
+      // Sync transforms for non-physics entities modified by scripts
+      for (const entity of this._entities.values()) {
+        if (!this._physicsBodies.has(entity.id)) {
+          this._syncTransform(entity)
+        }
+      }
+
+      // Animations
+      this._updateAnimators(dt)
+
+      // Physics
+      this._applyGravityForces()
+      this.physicsWorld.step(1 / 60, dt, 3)
+      for (const [id, body] of this._physicsBodies) {
+        const entity = this._entities.get(id)
+        if (!entity) continue
+        entity.position.x = body.position.x
+        entity.position.y = body.position.y
+        entity.position.z = body.position.z
+        this._syncTransform(entity)
+      }
+
+      this._render()
+      this._keyPressed.clear()
+      this._emit('statsUpdated', this.stats)
     }
 
-    // Scripting
-    this._updateScripts(dt)
+    this._frameId = requestAnimationFrame((t) => this._gameLoop(t))
+  }
 
-    // Animations
-    this._updateAnimators(dt)
-
-    // Physics
-    this.physicsWorld.step(1 / 60, dt, 3)
-    for (const [id, body] of this._physicsBodies) {
-      const entity = this._entities.get(id)
-      if (!entity) continue
-      entity.position.x = body.position.x
-      entity.position.y = body.position.y
-      entity.position.z = body.position.z
-      this._syncTransform(entity)
-    }
-
-    // Render
+  private _render(): void {
     if (this.postProcessing) {
       this.postProcessing.render()
     } else {
-      this.renderer.render(this.scene, this.camera)
+      this.renderer.render(this.scene, this._activeCamera)
     }
-    this._keyPressed.clear()
 
+    // Update stats
     const info = this.renderer.info
     this.stats.drawCalls = info.render.calls
     this.stats.triangles = info.render.triangles
-    this.stats.entities = this._entities.size
-    this._emit('statsUpdated', this.stats)
+    this.stats.entities  = this._entities.size
+  }
 
-    this._frameId = requestAnimationFrame((t) => this._gameLoop(t))
+  private _applyGravityForces(): void {
+    for (const [id, body] of this._physicsBodies) {
+      if (body.mass <= 0) continue
+      const entity = this._entities.get(id)
+      const comp = entity?.getComponent('physics')
+      if (!entity || !comp || comp.data.useGravity === false) continue
+
+      const gravity = comp.data.gravity as Partial<Vec3> | undefined
+      const gx = Number.isFinite(gravity?.x) ? Number(gravity?.x) : this._worldGravity.x
+      const gy = Number.isFinite(gravity?.y) ? Number(gravity?.y) : this._worldGravity.y
+      const gz = Number.isFinite(gravity?.z) ? Number(gravity?.z) : this._worldGravity.z
+
+      body.applyForce(new CANNON.Vec3(gx * body.mass, gy * body.mass, gz * body.mass), body.position)
+    }
   }
 
   // ─── Animator Runtime ──────────────────────────────────────────
@@ -934,31 +1167,115 @@ export class Engine {
 
   // ─── Scripting ─────────────────────────────────────────────────
 
+  recompileAllScripts(): string[] {
+    return this._compileScripts()
+  }
+
+  private _entityVarName(name: string): string {
+    const words = name.split(/[\s_\-]+/)
+    const ident = words[0].charAt(0).toLowerCase() + words[0].slice(1)
+      + words.slice(1).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+    return ident.replace(/[^a-zA-Z0-9_$]/g, '_').replace(/^[0-9]/, '_') || '_entity'
+  }
+
+  private _buildEntityDeclarations(): string {
+    return [...this._entities.values()]
+      .map(e => `const ${this._entityVarName(e.name)} = scene.getEntityByName(${JSON.stringify(e.name)});`)
+      .join('\n')
+  }
+
+  recompileScript(entityId: string, skipStart = false, sourceOverride?: string): string | null {
+    const entity = this._entities.get(entityId)
+    if (!entity) return 'Entity not found'
+    const scriptComp = entity.getComponent('script')
+    if (!scriptComp && !sourceOverride) {
+      this._compiledScripts.delete(entityId)
+      return null
+    }
+
+    let source = sourceOverride ?? (scriptComp?.data?.source as string) ?? ''
+    if (!source.trim()) {
+      this._compiledScripts.delete(entityId)
+      return null
+    }
+
+    // Strip markdown code fences and invisible chars
+    let cleanSource = source.replace(/[\u200B-\u200D\uFEFF]/g, '')
+    if (cleanSource.includes('```')) {
+      const match = cleanSource.match(/```(?:javascript|js|ts|typescript)?\n?([\s\S]*?)```/i)
+      if (match) cleanSource = match[1].trim()
+      else cleanSource = cleanSource.replace(/```[a-z]*/gi, '').replace(/```/g, '').trim()
+    } else {
+      cleanSource = cleanSource.trim()
+    }
+
+    // Auto-declare all scene entities as camelCase variables
+    const entityDecls = this._buildEntityDeclarations()
+
+    try {
+      const engineRef = this
+      const exports: { onStart?: () => void, onUpdate?: (dt: number) => void, onCollision?: (other: unknown) => void } = {}
+
+      const scriptContext = {
+        entity,
+        engine: this,
+        THREE,
+        keyDown: this._keyDown,
+        keyPressed: this._keyPressed,
+        scene: {
+          getMainCamera: () => engineRef._activeCamera,
+          getEntities: () => [...engineRef._entities.values()],
+          getEntityByName: (name: string) => [...engineRef._entities.values()].find(e => e.name.toLowerCase() === name.toLowerCase()),
+        },
+        onStart: (fn: () => void) => { exports.onStart = fn },
+        onUpdate: (fn: (dt: number) => void) => { exports.onUpdate = fn },
+        onCollision: (fn: (other: unknown) => void) => { exports.onCollision = fn },
+      }
+
+      const fn = new Function(
+        'entity', 'engine', 'THREE', 'keyDown', 'keyPressed', 'scene', 'onStart', 'onUpdate', 'onCollision',
+        `${entityDecls}\n${cleanSource}`
+      )
+      fn.call(scriptContext, entity, this, THREE, this._keyDown, this._keyPressed,
+        scriptContext.scene, scriptContext.onStart, scriptContext.onUpdate, scriptContext.onCollision)
+
+      this._compiledScripts.set(entity.id, exports)
+
+      if (!skipStart) {
+        try {
+          exports.onStart?.()
+          this._syncTransform(entity)
+        } catch (e) {
+          console.error(`[Script:${entity.name}] Error in onStart:`, e)
+        }
+      }
+      return null
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[Script:${entity.name}] Compilation Error: ${msg}`)
+      return msg
+    }
+  }
+
+  /** Run a script's onStart in editor mode so initial state shows in viewport */
+  previewScript(id: string, sourceOverride?: string): void {
+    if (this._running) return
+    const err = this.recompileScript(id, false, sourceOverride)
+    if (err) console.warn(`[Preview:${id}]`, err)
+    else {
+      this._compiledScripts.delete(id)
+      const entity = this._entities.get(id)
+      if (entity) this._emit('entityChanged', entity)
+    }
+  }
+
   private _compileScripts(): string[] {
     const errors: string[] = []
     this._compiledScripts.clear()
 
     for (const entity of this._entities.values()) {
-      const scriptComp = entity.getComponent('script')
-      if (!scriptComp) continue
-      const source = (scriptComp.data.source as string) || ''
-      if (!source.trim()) continue
-
-      try {
-        const fn = new Function(
-          'entity', 'engine', 'THREE', 'keyDown', 'keyPressed',
-          `"use strict";
-          const __exports = {};
-          ${source}
-          return __exports;`
-        )
-        const exports = fn(entity, this, THREE, this._keyDown, this._keyPressed)
-        this._compiledScripts.set(entity.id, exports)
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        errors.push(`[${entity.name}] ${msg}`)
-        console.error(`[Script:${entity.name}]`, msg)
-      }
+      const err = this.recompileScript(entity.id, true) // Skip onStart here, play() will call _startScripts
+      if (err) errors.push(`[${entity.name}] ${err}`)
     }
     return errors
   }
