@@ -11,6 +11,8 @@ export const User = sequelize.define('User', {
   role:          { type: DataTypes.STRING,  defaultValue: 'user' },
   is_verified:   { type: DataTypes.INTEGER, defaultValue: 0 },
   is_banned:     { type: DataTypes.INTEGER, defaultValue: 0 },
+  email_confirm_token_hash: { type: DataTypes.STRING },
+  email_confirm_expires_at: { type: DataTypes.DATE },
 }, { tableName: 'users', timestamps: true, createdAt: 'created_at', updatedAt: false })
 
 export const Developer = sequelize.define('Developer', {
@@ -70,7 +72,7 @@ Game.hasMany(GameItem,        { foreignKey: 'game_id' })
 export async function syncAndSeed() {
   // Disable FK enforcement so ALTER TABLE (SQLite drop+recreate) works cleanly
   await sequelize.query('PRAGMA foreign_keys = OFF')
-  await sequelize.sync({ alter: true })
+  await sequelize.sync()
   await sequelize.query('PRAGMA foreign_keys = ON')
 
   // Seed demo data — uses findOrCreate so restarts never destroy data or API keys
@@ -80,23 +82,29 @@ export async function syncAndSeed() {
     // Admin account
     const adminHash = await bcrypt.default.hash('admin123456', 12)
     await User.findOrCreate({
-      where: { email: 'admin@gameforge.dev' },
+      where: { email: 'admin@slymfox.com' },
       defaults: {
-        nom: 'Admin', prenom: 'GameForge', email: 'admin@gameforge.dev',
+        nom: 'Admin', prenom: 'GameForge', email: 'admin@slymfox.com',
         password_hash: adminHash, role: 'admin', is_verified: 1,
       }
     })
 
     const hash = await bcrypt.default.hash('demo123456', 12)
     const [user] = await User.findOrCreate({
-      where: { email: 'demo@gameforge.dev' },
-      defaults: { nom: 'Demo', prenom: 'Developer', email: 'demo@gameforge.dev', password_hash: hash, role: 'developer', is_verified: 1 }
+      where: { email: 'demo@slymfox.com' },
+      defaults: { nom: 'Demo', prenom: 'Developer', email: 'demo@slymfox.com', password_hash: hash, role: 'developer', is_verified: 1 }
     })
-    // Preserve existing API key — never overwrite if already set
+    // Preserve existing API key — search by api_key to avoid unique constraint if user_id changed
     const [dev] = await Developer.findOrCreate({
-      where: { user_id: user.id },
+      where: { api_key: 'demo_api_key_123' },
       defaults: { user_id: user.id, api_key: 'demo_api_key_123', plan: 'pro' }
     })
+    // If it was found by api_key, ensure it's linked to the correct (new) user email if needed
+    if (dev.user_id !== user.id) {
+      await dev.update({ user_id: user.id });
+    }
+    // Ensure we use the correct ID for the games seed, even if findOrCreate found an existing one
+    const developer_id = dev.id;
     const games = [
       // ── Jeux avec fichiers réels ────────────────────────────────────────────────────────────────────
       { name: 'Nexus Runner',          slug: 'nexus-runner',          description: 'Platformer 2D infini généré procéduralement. Double saut, ennemis, pièces. Construit avec Canvas 2D API.',                                                                          category: 'Platformer', price: 0,    player_count: 1247, project_path: '/static/nexus-runner/index.html',          engine_version: '2.0' },
@@ -115,7 +123,7 @@ export async function syncAndSeed() {
     for (const g of games) {
       await Game.findOrCreate({
         where: { slug: g.slug },
-        defaults: { ...g, developer_id: dev.id, status: 'published' }
+        defaults: { ...g, developer_id, status: 'published' }
       })
     }
   }
