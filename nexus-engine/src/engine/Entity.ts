@@ -33,6 +33,9 @@ export class Entity {
   visible: boolean
   locked: boolean
   object3D: THREE.Object3D | null
+  
+  // Tell Vue 3 to never wrap this object in a Proxy
+  __v_skip = true
 
   constructor(name: string = 'Entity', id?: string) {
     this.id = id || uuidv4()

@@ -17,6 +17,8 @@ export interface TerrainParams {
   theme?: TerrainTheme
   treeCount?: number
   ruinCount?: number
+  decorSprites?: string[]
+  decorCount?: number
 }
 
 export interface TerrainResult {
@@ -104,6 +106,8 @@ export class TerrainGenerator {
       theme     = 'plains',
       treeCount = 40,
       ruinCount = 10,
+      decorSprites = [],
+      decorCount = 0,
     } = params
 
     this.clearLast()
@@ -169,6 +173,11 @@ export class TerrainGenerator {
         ...this._buildPillars(treeCount, width, depth, getHeightAt, seed),
         ...this._buildRuins(ruinCount, width, depth, getHeightAt, seed + 5000),
       ]
+    }
+
+    // Add custom decor sprites
+    if (decorSprites.length > 0 && decorCount > 0) {
+      decorations.push(...this._buildSprites(decorCount, width, depth, getHeightAt, seed + 888, decorSprites))
     }
 
     for (const d of decorations) this._scene.add(d)
@@ -335,6 +344,35 @@ export class TerrainGenerator {
       )
       rock.castShadow = rock.receiveShadow = true
       objs.push(rock)
+    }
+    return objs
+  }
+
+  private _buildSprites(n: number, W: number, D: number, getH: (x: number, z: number) => number, seed: number, urls: string[]): THREE.Object3D[] {
+    const validUrls = urls.filter(u => u && u.trim() !== '')
+    if (validUrls.length === 0) return []
+    
+    const objs: THREE.Object3D[] = []
+    const loader = new THREE.TextureLoader()
+    const textures = validUrls.map(url => {
+      const tex = loader.load(url)
+      tex.colorSpace = THREE.SRGBColorSpace
+      return tex
+    })
+
+    for (let i = 0; i < n; i++) {
+      const x = (_hash(i, 0, seed) - 0.5) * (W - 4)
+      const z = (_hash(i, 1, seed) - 0.5) * (D - 4)
+      const h = getH(x, z)
+      
+      const texIndex = Math.floor(_hash(i, 2, seed) * textures.length)
+      const mat = new THREE.SpriteMaterial({ map: textures[texIndex], transparent: true })
+      const sprite = new THREE.Sprite(mat)
+      
+      const s = 1.5 + _hash(i, 3, seed) * 2
+      sprite.scale.set(s, s, 1)
+      sprite.position.set(x, h + s * 0.5, z)
+      objs.push(sprite)
     }
     return objs
   }
