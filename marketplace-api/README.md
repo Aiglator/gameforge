@@ -2,7 +2,7 @@
 
 REST API for the GameForge platform. Handles authentication, game listings, file uploads, purchases (Stripe), and MCP agent access.
 
-**Stack:** Express 4 · Sequelize 6 · SQLite3 · JWT · bcrypt · Multer · Stripe
+**Stack:** Express 4 · Sequelize 6 · SQLite3 · JWT · bcrypt · Multer · nodemailer · express-rate-limit · Stripe
 
 ---
 
@@ -42,8 +42,11 @@ ApiKey: <mcp_api_key>
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | POST | `/api/auth/register` | None | Register a new user |
+| POST | `/api/auth/confirm-email` | None | Confirm a registration token |
+| POST | `/api/auth/resend-confirmation` | None | Resend confirmation email |
 | POST | `/api/auth/login` | None | Login, returns JWT |
 | GET | `/api/auth/me` | Bearer | Get current user profile |
+| POST | `/api/auth/refresh` | None | Refresh a JWT for a verified account |
 
 ### Games
 
@@ -97,8 +100,10 @@ ApiKey: <mcp_api_key>
 ```bash
 curl -X POST http://localhost:3004/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"alice","email":"alice@example.com","password":"secret123"}'
+  -d '{"nom":"Doe","prenom":"Alice","email":"alice@example.com","password":"Secret123","birthday":"2000-01-01","hcaptchaToken":"<token>"}'
 ```
+
+Registration sends a confirmation email. The user can sign in only after `POST /api/auth/confirm-email`.
 
 **Login**
 ```bash
