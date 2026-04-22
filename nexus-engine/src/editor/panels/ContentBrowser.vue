@@ -51,7 +51,7 @@
       </div>
 
       <!-- Grid -->
-      <div class="flex-1 overflow-y-auto no-scrollbar p-2">
+      <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
         <!-- Empty state -->
         <div v-if="visible.length === 0" class="flex flex-col items-center justify-center h-full text-center">
           <span class="material-symbols-outlined text-slate-700 text-4xl">folder_open</span>
@@ -74,6 +74,8 @@
             @click="selected = asset.id"
             @dblclick="useAsset(asset)"
             @contextmenu.prevent="openCtx($event, asset)"
+            draggable="true"
+            @dragstart="e => onDragStart(e, asset)"
             class="flex flex-col items-center cursor-pointer group"
           >
             <!-- Thumbnail -->
@@ -185,6 +187,12 @@ function formatSize(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+function onDragStart(e: DragEvent, asset: AssetEntry) {
+  if (!e.dataTransfer) return
+  e.dataTransfer.setData('nexus/asset', JSON.stringify(asset))
+  e.dataTransfer.dropEffect = 'copy'
+}
+
 function useAsset(asset: AssetEntry) {
   const eng = store.engine
   const eid = store.selectedEntityId
@@ -236,4 +244,9 @@ function ctxDelete() {
 .ctx-item {
   @apply w-full px-4 py-1.5 text-left text-[11px] text-on-surface hover:bg-surface-highest;
 }
+
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
 </style>

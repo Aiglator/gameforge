@@ -17,7 +17,7 @@
       <div class="text-[9px] text-slate-500 mb-3">Log in to publish your game to the marketplace.</div>
       <div>
         <label class="text-[9px] uppercase text-slate-600 tracking-widest">Email</label>
-        <input v-model="loginEmail" type="email" placeholder="you@gameforge.dev"
+        <input v-model="loginEmail" type="email" placeholder="you@slymfox.com"
           class="w-full mt-1 bg-surface-high border border-surface-highest text-[11px] text-on-surface px-2 py-1.5 outline-none focus:border-accent"
           @keydown.enter="doLogin"
         />
@@ -29,7 +29,8 @@
           @keydown.enter="doLogin"
         />
       </div>
-      <button @click="doLogin" :disabled="loginLoading"
+      <div v-if="hcaptchaSiteKey" ref="hcaptchaEl" class="min-h-[78px] mt-1" />
+      <button @click="doLogin" :disabled="loginLoading || (Boolean(hcaptchaSiteKey) && !hcaptchaToken)"
         class="w-full py-2 bg-accent text-white text-[10px] font-bold uppercase tracking-widest hover:bg-accent-hover transition-colors disabled:opacity-50 mt-1"
       >
         {{ loginLoading ? 'Connecting...' : 'Connect to Marketplace' }}
@@ -95,7 +96,22 @@
               class="w-full mt-1 bg-surface-high border border-surface-highest text-[11px] text-on-surface px-2 py-1.5 outline-none focus:border-accent"
             />
           </div>
-          <button @click="createGame" :disabled="publishLoading"
+          <div>
+            <label class="text-[9px] uppercase text-slate-600 tracking-widest">Thumbnail</label>
+            <div class="mt-1 flex items-center space-x-3">
+              <div class="w-16 h-12 bg-surface-high border border-surface-highest flex items-center justify-center overflow-hidden">
+                <img v-if="newGame.thumbnail" :src="`http://localhost:3004/static/${newGame.thumbnail}`" class="w-full h-full object-cover" />
+                <span v-else class="material-symbols-outlined text-slate-700 text-sm">image</span>
+              </div>
+              <button @click="triggerFileUpload" :disabled="uploading"
+                class="px-3 py-1 bg-surface-highest text-[9px] uppercase font-bold tracking-widest hover:bg-surface-bright transition-colors"
+              >
+                {{ uploading ? 'Uploading...' : 'Choose File' }}
+              </button>
+              <input ref="fileInput" type="file" class="hidden" accept="image/*" @change="handleThumbnailUpload" />
+            </div>
+          </div>
+          <button @click="createGame" :disabled="publishLoading || uploading"
             class="w-full py-2 bg-surface-highest text-on-surface text-[10px] font-bold uppercase tracking-widest hover:bg-surface-bright transition-colors disabled:opacity-50"
           >
             {{ publishLoading ? 'Creating...' : 'Create Game Entry' }}
@@ -160,16 +176,74 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useEditorStore } from '../stores/editorStore'
 
 const store = useEditorStore()
 const API = 'http://localhost:3004/api'
 
+// ── hCaptcha logic ──────────────────────────────────────────
+const hcaptchaToken = ref('')
+const hcaptchaEl = ref<HTMLDivElement | null>(null)
+const hcaptchaSiteKey = (import.meta.env.VITE_HCAPTCHA_SITE_KEY as string | undefined) || '10000000-ffff-ffff-ffff-000000000001'
+let hcaptchaWidgetId: string | number | null = null
+let hcaptchaScriptLoading: Promise<void> | null = null
+
+declare global {
+  interface Window {
+    hcaptcha?: {
+      render: (container: HTMLElement, options: Record<string, unknown>) => string | number
+      reset: (widgetId?: string | number) => void
+    }
+  }
+}
+
+function loadHCaptcha() {
+  if (!hcaptchaSiteKey) return Promise.resolve()
+  if (window.hcaptcha) return Promise.resolve()
+  if (hcaptchaScriptLoading) return hcaptchaScriptLoading
+  hcaptchaScriptLoading = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src^="https://js.hcaptcha.com/1/api.js"]')
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true })
+      existing.addEventListener('error', reject, { once: true })
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit'
+    script.async = true; script.defer = true
+    script.onload = () => resolve()
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+  return hcaptchaScriptLoading
+}
+
+async function renderHCaptcha() {
+  if (!hcaptchaSiteKey || !hcaptchaEl.value || hcaptchaWidgetId !== null) return
+  try {
+    await loadHCaptcha()
+    if (!window.hcaptcha || !hcaptchaEl.value) return
+    hcaptchaWidgetId = window.hcaptcha.render(hcaptchaEl.value, {
+      sitekey: hcaptchaSiteKey,
+      callback: (token: string) => { hcaptchaToken.value = token },
+      'expired-callback': () => { hcaptchaToken.value = '' },
+      'error-callback': () => { hcaptchaToken.value = '' },
+    })
+  } catch {
+    loginError.value = 'Unable to load hCaptcha'
+  }
+}
+
+function resetHCaptcha() {
+  hcaptchaToken.value = ''
+  if (window.hcaptcha && hcaptchaWidgetId !== null) window.hcaptcha.reset(hcaptchaWidgetId)
+}
+
 // ── Auth state ──────────────────────────────────────────────
-const isConnected  = ref(false)
-const authUser     = ref<{ id: number; nom: string; prenom: string; email: string; role: string } | null>(null)
-const authToken    = ref<string | null>(localStorage.getItem('nexus_mkt_token'))
+const isConnected  = computed(() => !!store.authToken && !!store.authUser)
+const authUser     = computed(() => store.authUser)
+const authToken    = computed(() => store.authToken)
 const loginEmail   = ref('')
 const loginPassword = ref('')
 const loginLoading = ref(false)
@@ -182,8 +256,10 @@ const publishError = ref('')
 const saveLoading  = ref(false)
 const lastSaved    = ref('')
 const autoSlug     = ref(true)
+const uploading    = ref(false)
+const fileInput    = ref<HTMLInputElement | null>(null)
 
-const newGame = ref({ name: '', slug: '', description: '', category: 'Action', price: 0 })
+const newGame = ref({ name: '', slug: '', description: '', category: 'Action', price: 0, thumbnail: '' })
 
 const CATEGORIES = ['Action', 'Adventure', 'Puzzle', 'Strategy', 'RPG', 'Platformer', 'Sandbox', 'Racing', 'Simulation', 'Other']
 
@@ -194,35 +270,64 @@ watch(() => newGame.value.name, (n) => {
   }
 })
 
-// Restore session on mount
-if (authToken.value) {
-  fetchMe()
+function triggerFileUpload() {
+  fileInput.value?.click()
+}
+
+async function handleThumbnailUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  uploading.value = true
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    // Note: /projects/:gameId/assets but gameId isn't created yet.
+    // However, the route doesn't actually use gameId for anything but the URL.
+    // We'll use a placeholder 'new' as gameId.
+    const res = await mktFetch('/projects/new/assets', {
+      method: 'POST',
+      body: formData,
+      headers: {} // Let browser set Content-Type for FormData
+    })
+    newGame.value.thumbnail = res.url.replace('/static/', '') // Store relative path
+    store.addConsoleMessage('info', `[Marketplace] Thumbnail uploaded: ${res.name}`)
+  } catch (err: unknown) {
+    publishError.value = err instanceof Error ? err.message : 'Upload failed'
+  } finally {
+    uploading.value = false
+  }
 }
 
 async function fetchMe() {
+  if (!authToken.value) return
   try {
     const res = await mktFetch('/auth/me')
-    authUser.value = res.user
-    isConnected.value = true
+    store.setAuth(authToken.value, res.user)
     loadLinkedGame()
   } catch {
-    authToken.value = null
-    localStorage.removeItem('nexus_mkt_token')
+    store.setAuth(null, null)
   }
 }
 
 async function doLogin() {
+  if (hcaptchaSiteKey && !hcaptchaToken.value) {
+    loginError.value = 'Please complete the hCaptcha'
+    return
+  }
   loginError.value = ''
   loginLoading.value = true
   try {
     const res = await mktFetch('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: loginEmail.value, password: loginPassword.value }),
+      body: JSON.stringify({
+        email: loginEmail.value,
+        password: loginPassword.value,
+        hcaptchaToken: hcaptchaToken.value
+      }),
     })
-    authToken.value = res.token
-    authUser.value = res.user
-    localStorage.setItem('nexus_mkt_token', res.token)
-    isConnected.value = true
+    store.setAuth(res.token, res.user)
     loginPassword.value = ''
     store.addConsoleMessage('info', `[Marketplace] Logged in as ${res.user.email}`)
     loadLinkedGame()
@@ -230,15 +335,29 @@ async function doLogin() {
     loginError.value = e instanceof Error ? e.message : 'Login failed'
   } finally {
     loginLoading.value = false
+    resetHCaptcha()
   }
 }
 
+watch(isConnected, async (connected) => {
+  if (!connected) {
+    await nextTick()
+    renderHCaptcha()
+  }
+})
+
+onMounted(() => {
+  if (isConnected.value) {
+    loadLinkedGame()
+  } else {
+    fetchMe()
+    renderHCaptcha()
+  }
+})
+
 function disconnect() {
-  isConnected.value = false
-  authUser.value = null
-  authToken.value = null
+  store.setAuth(null, null)
   linkedGame.value = null
-  localStorage.removeItem('nexus_mkt_token')
   store.addConsoleMessage('info', '[Marketplace] Disconnected')
 }
 
@@ -310,9 +429,20 @@ async function publishGame() {
 
 // ── HTTP helper ─────────────────────────────────────────────
 async function mktFetch(path: string, opts: RequestInit = {}) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = { ...((opts.headers as Record<string, string>) || {}) }
   if (authToken.value) headers['Authorization'] = `Bearer ${authToken.value}`
-  const res = await fetch(`${API}${path}`, { ...opts, headers })
+  
+  if (!(opts.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+  
+  // Use credentials: 'include' to allow sending the nexus_token cookie
+  const res = await fetch(`${API}${path}`, { 
+    ...opts, 
+    headers,
+    credentials: 'include' 
+  })
+  
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }))
     throw new Error(err.message || `HTTP ${res.status}`)
