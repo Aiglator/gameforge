@@ -16,14 +16,26 @@ import adminRouter     from './routes/admin.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 3003
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3002,http://localhost:3003,http://localhost:3001,http://localhost:5173,http://localhost:3000')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean)
 
 const app = express()
+app.disable('x-powered-by')
 
 mkdirSync(join(__dirname, 'uploads', 'games'),   { recursive: true })
 mkdirSync(join(__dirname, 'uploads', 'assets'),  { recursive: true })
 
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  next()
+})
+
 app.use(cors({
-  origin: ['http://localhost:3002', 'http://localhost:3003', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:3000'],
+  origin: corsOrigins,
   credentials: true,
 }))
 app.use(express.json({ limit: '10mb' }))

@@ -33,7 +33,7 @@
             <div class="text-[9px] text-on-surface-variant mt-0.5">Crée tes propres jeux 2D/3D directement dans le navigateur et publie-les sur GameForge</div>
           </div>
         </div>
-        <RouterLink to="/engine"
+        <RouterLink v-if="auth.isLoggedIn" to="/engine"
           class="bg-secondary text-surface text-[9px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-secondary/80 transition-colors flex items-center space-x-2 whitespace-nowrap">
           <span>Ouvrir l'Engine</span>
           <span style="font-size:12px">→</span>
@@ -74,9 +74,11 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useGamesStore } from '../stores/gamesStore'
+import { useAuthStore } from '../stores/authStore'
 import GameGrid from '../components/GameGrid.vue'
 
 const store = useGamesStore()
+const auth = useAuthStore()
 const activeCategory = ref('')
 
 const CATEGORIES = ['Action', 'Puzzle', 'Adventure', 'Strategy', 'RPG', 'Platformer', 'Sandbox']

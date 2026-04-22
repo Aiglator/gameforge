@@ -40,4 +40,8 @@ The API base URL defaults to `http://localhost:3004`. To point at a different ba
 
 ```
 VITE_API_URL=https://api.yourdomain.com
+VITE_HCAPTCHA_SITE_KEY=10000000-ffff-ffff-ffff-000000000001
+VITE_NEXUS_ENGINE_URL=https://engine.yourdomain.com
 ```
+
+`VITE_HCAPTCHA_SITE_KEY` enables the hCaptcha widget on the registration form. The matching server secret must be configured as `HCAPTCHA_SECRET` in `marketplace-api`.

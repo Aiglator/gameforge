@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS users (
   birthday TEXT,
   role TEXT DEFAULT 'user',
   is_verified INTEGER DEFAULT 0,
+  is_banned INTEGER DEFAULT 0,
+  email_confirm_token_hash TEXT,
+  email_confirm_expires_at TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
