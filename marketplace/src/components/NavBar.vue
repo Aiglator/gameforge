@@ -11,7 +11,7 @@
       <RouterLink to="/" class="nav-link">Accueil</RouterLink>
       <RouterLink to="/catalog" class="nav-link">Catalogue</RouterLink>
       <RouterLink v-if="auth.isLoggedIn" to="/dashboard" class="nav-link">Dashboard</RouterLink>
-      <RouterLink to="/engine" class="text-[10px] text-secondary border border-secondary/40 px-2 py-0.5 uppercase tracking-widest hover:bg-secondary/10 transition-colors flex items-center space-x-1">
+      <RouterLink v-if="auth.isLoggedIn" to="/engine" class="text-[10px] text-secondary border border-secondary/40 px-2 py-0.5 uppercase tracking-widest hover:bg-secondary/10 transition-colors flex items-center space-x-1">
         <span>⚡</span><span>Engine</span>
       </RouterLink>
       <RouterLink v-if="auth.user?.role === 'admin'" to="/admin" class="nav-link text-red-400 border border-red-400/40 px-2 py-0.5">🛡 Admin</RouterLink>
