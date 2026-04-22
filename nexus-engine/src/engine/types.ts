@@ -41,6 +41,7 @@ export interface PhysicsComponentData extends ComponentData {
   mass: number
   halfExtents: Vec3
   useGravity: boolean
+  gravity?: Vec3
   shape?: PhysicsShape
   radius?: number
 }
@@ -58,6 +59,8 @@ export interface TerrainComponentData extends ComponentData {
   theme: TerrainTheme
   treeCount: number
   ruinCount: number
+  decorSprites?: string[]    // URLs des textures de décors
+  decorCount?: number       // Nombre de décors à spawner
 }
 
 export interface ScriptComponentData extends ComponentData {
