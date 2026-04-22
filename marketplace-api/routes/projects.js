@@ -9,7 +9,16 @@ import { requireAuth } from '../middleware/auth.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const UPLOADS = join(__dirname, '..', 'uploads')
 mkdirSync(join(UPLOADS, 'assets'), { recursive: true })
-const upload = multer({ dest: join(UPLOADS, 'assets') })
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, join(UPLOADS, 'assets')),
+  filename: (_req, file, cb) => {
+    const ext = file.originalname.split('.').pop()
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, `${file.fieldname}-${uniqueSuffix}.${ext}`)
+  }
+})
+const upload = multer({ storage })
 
 const router = Router()
 
@@ -48,7 +57,7 @@ router.get('/:gameId/assets', requireAuth, async (req, res) => {
 router.post('/:gameId/assets', requireAuth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' })
   res.status(201).json({
-    url: `/static/assets/${req.file.filename}`,
+    url: `assets/${req.file.filename}`,
     name: req.file.originalname,
     size: req.file.size,
   })
