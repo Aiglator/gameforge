@@ -169,16 +169,63 @@
           </div>
           <div class="bg-sc border border-sh p-6">
             <div class="text-[9px] font-bold tracking-[2px] uppercase text-onv mb-4">Comptes admin</div>
-            <div class="text-[11px] text-onv">admin@gameforge.dev &nbsp;·&nbsp; <span class="text-secondary">Mot de passe : admin123456</span></div>
+            <div class="text-[11px] text-onv">admin@slymfox.com &nbsp;·&nbsp; <span class="text-secondary">Mot de passe : admin123456</span></div>
             <div class="text-[9px] text-muted mt-2">⚠️ Changer le mot de passe en production</div>
           </div>
         </div>
 
         <!-- GAMES SECTION -->
         <div v-if="activeSection === 'games'">
-          <h1 class="text-xl font-black text-on mb-6">Modération des Jeux</h1>
-          <div class="bg-sc border border-sh p-6 text-[11px] text-onv">
-            Affiche tous les jeux publiés · Possibilité de retirer un jeu de la marketplace.
+          <div class="flex items-end justify-between mb-6">
+            <div>
+              <h1 class="text-xl font-black text-on">Modération des Jeux</h1>
+              <p class="text-[10px] text-muted mt-1">Tous les jeux · Publier, dépublier, supprimer</p>
+            </div>
+            <div class="flex gap-2">
+              <button
+                v-for="f in gameFilters" :key="f.value"
+                @click="gameStatusFilter = f.value; fetchGames()"
+                class="text-[9px] uppercase tracking-wider px-3 py-1 transition-all"
+                :class="gameStatusFilter === f.value ? 'bg-err/10 text-err font-bold border border-err/40' : 'bg-sh text-onv hover:text-on'"
+              >{{ f.label }}</button>
+            </div>
+          </div>
+
+          <div class="bg-sc border border-sh overflow-hidden">
+            <div class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] bg-sh text-[8px] font-bold tracking-[2px] uppercase text-onv px-4 py-2 gap-4">
+              <span>Jeu</span><span>Catégorie</span><span>Prix</span><span>Joueurs</span><span>Statut</span><span>Actions</span>
+            </div>
+            <div v-if="gamesLoading" class="py-12 text-center text-[10px] text-muted">Chargement...</div>
+            <div v-else-if="allGames.length === 0" class="py-12 text-center text-[10px] text-muted">Aucun jeu trouvé</div>
+            <div
+              v-for="(game, i) in allGames" :key="game.id"
+              class="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] items-center px-4 py-2.5 gap-4 border-t border-sh text-[10px] transition-colors hover:bg-sh/50"
+              :class="i % 2 === 0 ? '' : 'bg-bg/40'"
+            >
+              <div>
+                <div class="font-bold text-on">{{ game.name }}</div>
+                <div class="text-[8px] text-muted">{{ game.slug }}</div>
+              </div>
+              <span class="text-muted">{{ game.category }}</span>
+              <span class="text-muted">{{ game.price === 0 ? 'Gratuit' : `$${game.price}` }}</span>
+              <span class="text-on font-bold">{{ game.player_count }}</span>
+              <span class="text-[8px] font-bold px-2 py-0.5 inline-block"
+                :class="game.status === 'published' ? 'bg-secondary/10 text-secondary' : 'bg-sh text-muted'">
+                {{ game.status }}
+              </span>
+              <div class="flex gap-1.5">
+                <button v-if="game.status !== 'published'" @click="adminPublishGame(game)"
+                  class="text-[8px] px-2 py-1 bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors">Publier</button>
+                <button v-else @click="adminUnpublishGame(game)"
+                  class="text-[8px] px-2 py-1 bg-accent/10 text-accent hover:bg-accent/20 transition-colors">Dépublier</button>
+                <button @click="adminDeleteGame(game)"
+                  class="text-[8px] px-2 py-1 bg-err/10 text-err hover:bg-err/20 transition-colors">Suppr.</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between mt-4 text-[9px] text-muted">
+            <span>{{ allGames.length }} jeux affichés</span>
           </div>
         </div>
 
@@ -235,6 +282,15 @@ const offset = ref(0)
 const limit = 15
 const selectedUser = ref<any>(null)
 const statsData = ref<any>(null)
+
+const allGames = ref<any[]>([])
+const gamesLoading = ref(false)
+const gameStatusFilter = ref('all')
+const gameFilters = [
+  { label: 'Tous', value: 'all' },
+  { label: 'Publiés', value: 'published' },
+  { label: 'Brouillons', value: 'draft' },
+]
 
 const navItems = [
   { id: 'stats',    icon: '⊞', label: "Vue d'ensemble" },
@@ -365,7 +421,51 @@ function exportCSV() {
   a.click()
 }
 
+async function fetchGames() {
+  gamesLoading.value = true
+  try {
+    const params = new URLSearchParams()
+    if (gameStatusFilter.value !== 'all') params.set('status', gameStatusFilter.value)
+    const res = await fetch(`${API}/admin/games?${params}&limit=100`, {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+    })
+    const data = await res.json()
+    allGames.value = data.games || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    gamesLoading.value = false
+  }
+}
+
+async function adminPublishGame(game: any) {
+  await fetch(`${API}/admin/games/${game.id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'published' }),
+  })
+  await fetchGames()
+}
+
+async function adminUnpublishGame(game: any) {
+  await fetch(`${API}/admin/games/${game.id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'draft' }),
+  })
+  await fetchGames()
+}
+
+async function adminDeleteGame(game: any) {
+  if (!confirm(`Supprimer "${game.name}" ? Action irréversible.`)) return
+  await fetch(`${API}/admin/games/${game.id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${authStore.token}` },
+  })
+  await fetchGames()
+}
+
 onMounted(async () => {
-  await Promise.all([fetchUsers(), fetchStats()])
+  await Promise.all([fetchUsers(), fetchStats(), fetchGames()])
 })
 </script>
