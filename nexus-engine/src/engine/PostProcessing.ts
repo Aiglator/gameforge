@@ -32,7 +32,7 @@ export class PostProcessing {
 
   private _renderer: THREE.WebGLRenderer
   private _scene:    THREE.Scene
-  private _camera:   THREE.PerspectiveCamera
+  private _camera:   THREE.Camera
   private _bloomPass: UnrealBloomPass | null = null
   private _fxaaPass:  ShaderPass | null = null
   private _options:   PostProcessingOptions = { ...DEFAULTS }
@@ -40,7 +40,7 @@ export class PostProcessing {
   constructor(
     renderer: THREE.WebGLRenderer,
     scene:    THREE.Scene,
-    camera:   THREE.PerspectiveCamera,
+    camera:   THREE.Camera,
   ) {
     this._renderer = renderer
     this._scene    = scene
@@ -62,6 +62,11 @@ export class PostProcessing {
 
   render(): void {
     this.composer.render()
+  }
+
+  setCamera(camera: THREE.Camera): void {
+    this._camera = camera
+    this._rebuild()
   }
 
   setSize(w: number, h: number): void {
