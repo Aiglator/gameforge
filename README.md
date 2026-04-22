@@ -32,7 +32,7 @@ A community-driven browser-based game engine and marketplace. Create 3D and 2D g
 |---|---|
 | Engine Frontend | Vue 3, TypeScript, Pinia, Vite, Three.js r168, Cannon-es 0.20.0, Monaco Editor |
 | Marketplace Frontend | Vue 3, Pinia, Vue Router, Vite, TailwindCSS |
-| API Backend | Express 4, Sequelize 6, SQLite3, JWT, bcrypt, Multer, Stripe |
+| API Backend | Express 4, Sequelize 6, SQLite3, JWT, bcrypt, Multer, nodemailer, express-rate-limit, Stripe |
 | Tooling | Vite, ESLint, PostCSS, Autoprefixer |
 
 ---
@@ -87,6 +87,36 @@ cp marketplace-api/.env.example marketplace-api/.env
 | `STRIPE_SECRET_KEY` | Stripe secret key for payment processing |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `CORS_ORIGINS` | Comma-separated list of allowed CORS origins |
+| `APP_URL` | Public marketplace URL used in email confirmation links |
+| `HCAPTCHA_SECRET` | Server secret for hCaptcha registration verification |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | SMTP settings for confirmation and welcome emails |
+| `MAIL_FROM` | Sender displayed in outgoing emails |
+
+Marketplace frontend variables:
+
+```bash
+cp marketplace/.env.example marketplace/.env.local
+```
+
+| Variable | Description |
+|---|---|
+| `VITE_API_URL` | API base URL consumed with fetch |
+| `VITE_HCAPTCHA_SITE_KEY` | Public hCaptcha site key used on registration |
+| `VITE_NEXUS_ENGINE_URL` | Nexus Engine iframe URL used by the marketplace |
+
+Nexus Engine variables:
+
+```bash
+cp nexus-engine/.env.example nexus-engine/.env.local
+```
+
+| Variable | Description |
+|---|---|
+| `VITE_MARKETPLACE_API_URL` | Marketplace API used by Nexus to validate JWT sessions |
+| `VITE_MARKETPLACE_ORIGINS` | Allowed marketplace origins for `postMessage` auth |
+| `VITE_MARKETPLACE_URL` | Marketplace login URL used by the locked screen |
+| `VITE_NEXUS_BACKEND_WS` | Nexus backend WebSocket URL |
+| `MARKETPLACE_API_URL` | Backend-side API URL for WebSocket/API token validation |
 
 ---
 
@@ -104,8 +134,11 @@ cp marketplace-api/.env.example marketplace-api/.env
 | Method | Route | Description |
 |---|---|---|
 | POST | `/api/auth/register` | Register a new user |
+| POST | `/api/auth/confirm-email` | Confirm registration email |
+| POST | `/api/auth/resend-confirmation` | Resend confirmation email |
 | POST | `/api/auth/login` | Login and receive JWT |
 | GET | `/api/auth/me` | Get authenticated user profile |
+| POST | `/api/auth/refresh` | Refresh JWT |
 
 ### Games
 | Method | Route | Description |
