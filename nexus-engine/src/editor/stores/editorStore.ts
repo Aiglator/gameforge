@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
 import type { Engine } from '../../engine/Engine'
 import type { GizmoMode } from '../../engine/types'
 
@@ -26,7 +26,33 @@ export interface AssetEntry {
 
 let _msgId = 0
 
+export interface User {
+  id: number
+  nom: string
+  prenom: string
+  email: string
+  role: string
+}
+
 export const useEditorStore = defineStore('editor', () => {
+
+  // ── Auth ────────────────────────────────────────────────────
+  const authToken = ref<string | null>(localStorage.getItem('nexus_mkt_token'))
+  const authUser = ref<User | null>(null)
+
+  function setAuth(token: string | null, user: User | null) {
+    authToken.value = token
+    authUser.value = user
+    if (token) {
+      localStorage.setItem('nexus_mkt_token', token)
+    } else {
+      localStorage.removeItem('nexus_mkt_token')
+    }
+  }
+
+  // ── Current Game (marketplace project) ──────────────────────
+  const currentGameId = ref<number | null>(null)
+  function setCurrentGameId(id: number | null) { currentGameId.value = id }
 
   // ── Project Mode (wizard) ────────────────────────────────────
   // null = wizard not yet shown, value persisted in localStorage
@@ -54,17 +80,16 @@ export const useEditorStore = defineStore('editor', () => {
     if (mode === '2d') {
       // Orthographic camera, disable terrain & 3D-only tools
       eng.setCameraMode?.('orthographic')
-    } else if (mode === '3d') {
-      eng.setCameraMode?.('perspective')
-      // Pre-enable skybox for full 3D experience
+      cameraProjection.value = 'orthographic'
     } else {
-      // 2D/3D: perspective camera, default settings
+      // 2D/3D or 3D: perspective camera
       eng.setCameraMode?.('perspective')
+      cameraProjection.value = 'perspective'
     }
   }
 
   // ── Engine ──────────────────────────────────────────────────
-  const engine = ref<Engine | null>(null)
+  const engine = shallowRef<Engine | null>(null)
   function setEngine(eng: Engine) {
     engine.value = eng
     // Apply stored mode when engine mounts
@@ -139,6 +164,41 @@ export const useEditorStore = defineStore('editor', () => {
     assets.value.filter(a => a.folder === currentFolder.value)
   )
 
+  // ── Viewport Camera ──────────────────────────────────────────
+  const cameraProjection = ref<'perspective' | 'orthographic'>('perspective')
+  const cameraFov = ref(60)
+  const cameraNear = ref(0.1)
+  const cameraFar = ref(1000)
+  const cameraSpeed = ref(0.08) // orbit damping factor
+
+  function setCamProjection(mode: 'perspective' | 'orthographic') {
+    cameraProjection.value = mode
+    engine.value?.setCameraMode(mode)
+  }
+
+  function setCamFov(fov: number) {
+    cameraFov.value = fov
+    engine.value?.setCameraFov(fov)
+  }
+
+  function setCamClip(near: number, far: number) {
+    cameraNear.value = near
+    cameraFar.value = far
+    engine.value?.setCameraClip(near, far)
+  }
+
+  function setCamSpeed(v: number) {
+    cameraSpeed.value = v
+    engine.value?.setOrbitSpeed(v)
+  }
+
+  function resetCamera() {
+    cameraFov.value = 60
+    cameraNear.value = 0.1
+    cameraFar.value = 1000
+    engine.value?.resetCamera()
+  }
+
   // ── Skybox / Post-FX ─────────────────────────────────────────
   const skyboxEnabled = ref(false)
   const skyboxPreset = ref<'day' | 'sunset' | 'night' | 'overcast'>('day')
@@ -191,9 +251,12 @@ export const useEditorStore = defineStore('editor', () => {
   const wsConnected = ref(false)
   let ws: WebSocket | null = null
 
-  function connectWS() {
+  function connectWS(authToken?: string) {
     try {
-      ws = new WebSocket('ws://localhost:3001/ws')
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
+      const wsUrl = new URL((import.meta.env.VITE_NEXUS_BACKEND_WS as string | undefined) || 'ws://localhost:3001/ws')
+      if (authToken) wsUrl.searchParams.set('token', authToken)
+      ws = new WebSocket(wsUrl.toString())
       ws.onopen = () => { wsConnected.value = true; addConsoleMessage('info', '[WS] Connected to backend') }
       ws.onclose = () => { wsConnected.value = false; addConsoleMessage('warn', '[WS] Disconnected') }
       ws.onmessage = (e) => {
@@ -253,6 +316,9 @@ export const useEditorStore = defineStore('editor', () => {
     consoleMessages, addConsoleMessage, clearConsole,
     // assets
     assets, currentFolder, addAsset, removeAsset, assetsInFolder,
+    // viewport camera
+    cameraProjection, cameraFov, cameraNear, cameraFar, cameraSpeed,
+    setCamProjection, setCamFov, setCamClip, setCamSpeed, resetCamera,
     // skybox / post-fx
     skyboxEnabled, skyboxPreset, postFXEnabled, bloomStrength,
     toggleSkybox, setSkyboxPreset, togglePostFX, setBloomStrength,
@@ -260,5 +326,9 @@ export const useEditorStore = defineStore('editor', () => {
     activeMenu, setActiveMenu,
     // ws
     wsConnected, connectWS,
+    // auth
+    authToken, authUser, setAuth,
+    // current game
+    currentGameId, setCurrentGameId,
   }
 })
