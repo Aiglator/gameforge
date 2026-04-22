@@ -19,6 +19,19 @@ npm run dev
 
 > Requires the Marketplace API on **http://localhost:3004** to publish games.
 
+Nexus Engine is locked when opened directly. The marketplace sends a JWT to the editor iframe with `postMessage`, and the editor validates it against the marketplace API before mounting the workspace.
+
+```bash
+cp .env.example .env.local
+```
+
+Key variables:
+- `VITE_MARKETPLACE_API_URL`: marketplace API used by the frontend auth gate.
+- `VITE_MARKETPLACE_ORIGINS`: trusted marketplace origins for `postMessage`.
+- `VITE_MARKETPLACE_URL`: login URL used by the locked screen.
+- `VITE_NEXUS_BACKEND_WS`: backend WebSocket URL.
+- `MARKETPLACE_API_URL`: backend verification endpoint base URL.
+
 ---
 
 ## Features
