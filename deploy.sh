@@ -139,18 +139,23 @@ chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
 # ── 6. Installation des dépendances et build ─────────────────────────────────
 log "6/9 — npm install + build pour chaque service"
+# IMPORTANT : on installe TOUTES les deps (y compris dev) — vue-tsc / vite sont
+# en devDependencies et sont indispensables pour `npm run build`.
 for SVC in marketplace-api nexus-engine marketplace; do
   log "  → ${SVC}"
-  sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}/${SVC}' && npm ci --omit=dev 2>/dev/null || npm install --production=false"
+  sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}/${SVC}' && npm install --no-audit --no-fund"
 done
 
-# Build des fronts
+# Build des fronts (Vite)
 sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}/nexus-engine' && npm run build"
 sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}/marketplace'   && npm run build"
 
 # Vérification des dossiers de build
 [[ -d "${APP_DIR}/nexus-engine/dist" ]] || die "Build nexus-engine introuvable : ${APP_DIR}/nexus-engine/dist"
 [[ -d "${APP_DIR}/marketplace/dist"   ]] || die "Build marketplace introuvable : ${APP_DIR}/marketplace/dist"
+
+# Économise l'espace en retirant les devDependencies de l'API (qui ne build pas)
+sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}/marketplace-api' && npm prune --omit=dev" || true
 
 # ── 7. PM2 — supervision des backends ────────────────────────────────────────
 log "7/9 — Configuration PM2"
@@ -185,7 +190,8 @@ EOF
 mkdir -p "${APP_DIR}/logs"
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
-sudo -u "${APP_USER}" pm2 start "${APP_DIR}/ecosystem.config.cjs"
+# startOrReload : démarre la 1ère fois, puis reload (zero-downtime) sur ré-exécution
+sudo -u "${APP_USER}" pm2 startOrReload "${APP_DIR}/ecosystem.config.cjs"
 sudo -u "${APP_USER}" pm2 save
 
 # Démarrage auto au boot
