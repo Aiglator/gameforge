@@ -88,6 +88,8 @@ log "3/9 — Création de l'utilisateur applicatif '${APP_USER}'"
 if ! id -u "${APP_USER}" >/dev/null 2>&1; then
   adduser --system --group --home "${APP_DIR}" --shell /bin/bash "${APP_USER}"
 fi
+# Force /bin/bash : adduser --system ignore parfois --shell sur Ubuntu 24.04
+chsh -s /bin/bash "${APP_USER}" || true
 mkdir -p "${APP_DIR}"
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
@@ -191,8 +193,9 @@ mkdir -p "${APP_DIR}/logs"
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
 # startOrReload : démarre la 1ère fois, puis reload (zero-downtime) sur ré-exécution
-sudo -u "${APP_USER}" pm2 startOrReload "${APP_DIR}/ecosystem.config.cjs"
-sudo -u "${APP_USER}" pm2 save
+# -H : positionne HOME correctement pour que PM2 trouve son daemon
+sudo -u "${APP_USER}" -H bash -lc "cd '${APP_DIR}' && pm2 startOrReload ecosystem.config.cjs"
+sudo -u "${APP_USER}" -H pm2 save
 
 # Démarrage auto au boot
 env PATH="$PATH:/usr/bin" pm2 startup systemd -u "${APP_USER}" --hp "${APP_DIR}" | tail -1 | bash
