@@ -36,7 +36,7 @@ IFS=$'\n\t'
 # ── Variables ────────────────────────────────────────────────────────────────
 DOMAIN="${DOMAIN:-slymfox.com}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${DOMAIN}}"
-REPO_URL="${REPO_URL:-https://github.com/Aiglator/eemi-gameforge.git}"
+REPO_URL="${REPO_URL:-https://github.com/Aiglator/gameforge.git}"
 BRANCH="${BRANCH:-nexus-engine}"
 APP_USER="${APP_USER:-gameforge}"
 APP_DIR="${APP_DIR:-/opt/gameforge}"

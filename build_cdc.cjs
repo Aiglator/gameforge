@@ -172,7 +172,7 @@ children.push(kvTable([
   ['Statut', 'Document de livraison finale'],
   ['Auteur', 'Équipe GameForge (Aiglator)'],
   ['Domaines', 'slymfox.com — marketplace.slymfox.com — api.slymfox.com — ws.slymfox.com'],
-  ['Dépôt', 'github.com/Aiglator/eemi-gameforge (branche nexus-engine)'],
+  ['Dépôt', 'github.com/Aiglator/gameforge (branche nexus-engine)'],
   ['Infrastructure', 'VPS Ubuntu unique — Nginx + PM2 + Let’s Encrypt'],
 ]));
 
@@ -909,7 +909,7 @@ children.push(heading('12. Déploiement détaillé (deploy.sh, VPS unique)'));
 children.push(p('Le script deploy.sh fourni à la racine du dépôt automatise la totalité du déploiement sur un seul VPS Ubuntu. Une commande, tout est en ligne.'));
 children.push(code(
 `# Sur le VPS, en root :
-git clone -b nexus-engine https://github.com/Aiglator/eemi-gameforge.git /tmp/app
+git clone -b nexus-engine https://github.com/Aiglator/gameforge.git /tmp/app
 cd /tmp/app
 sudo ADMIN_EMAIL=admin@slymfox.com bash deploy.sh
 

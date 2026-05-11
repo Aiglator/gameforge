@@ -49,7 +49,7 @@ Internet → Cloudflare (proxy + DDoS + CDN)
 | Tests | Jest 30 + Supertest 7 |
 | Déploiement | VPS Ubuntu + Nginx + PM2 + Certbot + UFW + fail2ban |
 
-**Repo** : https://github.com/Aiglator/eemi-gameforge — branche `nexus-engine`.
+**Repo** : https://github.com/Aiglator/gameforge — branche `nexus-engine`.
 
 ---
 
